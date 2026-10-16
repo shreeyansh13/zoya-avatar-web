@@ -205,24 +205,25 @@ async function init(){
       if (node) poseBase[key] = node.quaternion.clone();
     }
 
-    // Gentle inward bend for the resting pose; tune after checking the live model.
+    // Stronger resting bend: bring forearms inward toward the chest.
+    // These offsets affect only the avatar's arm/hand bones; backend and voice stay unchanged.
     const restAngles = {
-      leftUpper:  [0.00, 0.00,  0.28],
-      rightUpper: [0.00, 0.00, -0.28],
-      leftLower:  [0.00, 0.00, -0.62],
-      rightLower: [0.00, 0.00,  0.62],
-      leftHand:   [0.00, 0.00,  0.05],
-      rightHand:  [0.00, 0.00, -0.05]
+      leftUpper:  [0.00,  0.22,  0.72],
+      rightUpper: [0.00, -0.22, -0.72],
+      leftLower:  [0.00,  0.10, -1.12],
+      rightLower: [0.00, -0.10,  1.12],
+      leftHand:   [0.00,  0.00,  0.08],
+      rightHand:  [0.00,  0.00, -0.08]
     };
 
     applyCrossedPose = (blend = 0, phase = 0) => {
       const a = Math.sin(phase);
       const b = Math.sin(phase * 0.72 + 1.0);
       const gestureAngles = {
-        leftUpper:  [0.07 * a * blend,  0.10 * b * blend,  0.16 * a * blend],
-        rightUpper: [-0.06 * b * blend, -0.10 * a * blend, -0.16 * b * blend],
-        leftLower:  [0.12 * Math.max(0, a) * blend, 0.05 * b * blend, -0.22 * b * blend],
-        rightLower: [0.12 * Math.max(0, b) * blend, -0.05 * a * blend, 0.22 * a * blend],
+        leftUpper:  [0.06 * a * blend,  0.08 * b * blend,  0.10 * a * blend],
+        rightUpper: [-0.06 * b * blend, -0.08 * a * blend, -0.10 * b * blend],
+        leftLower:  [0.08 * Math.max(0, a) * blend, 0.04 * b * blend, -0.14 * b * blend],
+        rightLower: [0.08 * Math.max(0, b) * blend, -0.04 * a * blend, 0.14 * a * blend],
         leftHand:   [0.04 * b * blend,  0.07 * a * blend,  0.06 * a * blend],
         rightHand:  [0.04 * a * blend, -0.07 * b * blend, -0.06 * b * blend]
       };
