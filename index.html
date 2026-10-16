@@ -92,7 +92,11 @@ sendBtn.addEventListener('click',async()=>{
     speak(answer);
   }catch(error){
     const msg=error?.message||'अज्ञात नेटवर्क त्रुटि';
-    setStatus('Gemini कनेक्शन असफल: '+msg+'. Backend में कोई बदलाव नहीं किया गया।');
+    if (error instanceof TypeError || /fetch|network/i.test(msg)) {
+      setStatus('Gemini request browser से नहीं पहुँच पाई। Backend health जाँचें; अगर वह running है तो CORS में इस वेबसाइट का origin अनुमति-प्राप्त होना चाहिए।');
+    } else {
+      setStatus('Gemini कनेक्शन असफल: '+msg+'. Backend में कोई बदलाव नहीं किया गया।');
+    }
   }finally{sendBtn.disabled=false;}
 });
 document.getElementById('stop').addEventListener('click',()=>{
@@ -178,21 +182,21 @@ async function init(){
 
     // Bring shoulders/upper arms down and slightly forward from the raised V pose.
     if (leftUpperArm) {
-      leftUpperArm.rotation.set(-0.38, -0.32, 0.34);
+      leftUpperArm.rotation.set(-0.42, -0.20, 0.62);
     }
     if (rightUpperArm) {
-      rightUpperArm.rotation.set(-0.38, 0.32, -0.34);
+      rightUpperArm.rotation.set(-0.42, 0.20, -0.62);
     }
-    // Bend both elbows inward so forearms approach and cross in front of the chest.
+    // Reverse the previous elbow bend: aim forearms inward across the upper chest.
     if (leftLowerArm) {
-      leftLowerArm.rotation.set(-0.12, 0.15, -1.12);
+      leftLowerArm.rotation.set(0.08, 0.12, 1.28);
     }
     if (rightLowerArm) {
-      rightLowerArm.rotation.set(-0.12, -0.15, 1.12);
+      rightLowerArm.rotation.set(0.08, -0.12, -1.28);
     }
-    // Turn palms/fingers inward toward one another.
-    if (leftHand) leftHand.rotation.set(0.10, 0.22, -0.20);
-    if (rightHand) rightHand.rotation.set(0.10, -0.22, 0.20);
+    // Rotate wrists inward so the hands face toward the center.
+    if (leftHand) leftHand.rotation.set(0.08, 0.28, 0.12);
+    if (rightHand) rightHand.rotation.set(0.08, -0.28, -0.12);
 
     frameModel(vrm.scene);
     setStatus('3D Avatar तैयार है। संदेश लिखकर “पूछें और सुनें” दबाएँ।');
