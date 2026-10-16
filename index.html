@@ -4,204 +4,113 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101116">
-  <title>Zoya AI — Free Avatar</title>
-
+  <title>Zoya AI — Hindi Lip-Sync Demo</title>
   <style>
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      min-height: 100dvh;
-      background: #101116;
-      color: white;
-      font-family: system-ui, sans-serif;
-      display: flex;
-      flex-direction: column;
-    }
-
-    header {
-      padding: 16px;
-      font-size: 20px;
-      font-weight: 700;
-      border-bottom: 1px solid #30313a;
-    }
-
-    main {
-      width: 100%;
-      max-width: 600px;
-      margin: auto;
-      padding: 16px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    .portrait {
-      position: relative;
-      width: 100%;
-      overflow: hidden;
-      border-radius: 18px;
-      background: #181923;
-    }
-
-    .portrait img {
-      display: block;
-      width: 100%;
-      height: auto;
-    }
-
-    /* अनुमानित मुँह की जगह; फोटो के अनुसार समायोजन जरूरी हो सकता है */
-    .mouth {
-      position: absolute;
-      left: 44.5%;
-      top: 54.4%;
-      width: 11%;
-      height: 2.3%;
-      border-radius: 50%;
-      background: rgba(90, 12, 25, 0.18);
-      transform: translate(-50%, -50%) scaleY(0.35);
-      transform-origin: center;
-      pointer-events: none;
-    }
-
-    .speaking .mouth {
-      animation: talk 180ms infinite alternate ease-in-out;
-    }
-
-    @keyframes talk {
-      from { transform: translate(-50%, -50%) scaleY(0.35); }
-      to   { transform: translate(-50%, -50%) scaleY(2.1); }
-    }
-
-    textarea {
-      width: 100%;
-      min-height: 90px;
-      resize: vertical;
-      border: 1px solid #393b49;
-      border-radius: 12px;
-      padding: 12px;
-      color: white;
-      background: #1b1c25;
-      font: inherit;
-    }
-
-    .buttons {
-      display: flex;
-      gap: 10px;
-    }
-
-    button {
-      flex: 1;
-      padding: 13px 10px;
-      border: 0;
-      border-radius: 12px;
-      font: inherit;
-      font-weight: 650;
-      cursor: pointer;
-    }
-
-    #speak { background: #7567ff; color: white; }
-    #stop { background: #30313a; color: white; }
-
-    #status {
-      color: #c4c5d0;
-      font-size: 14px;
-      min-height: 22px;
-    }
-
-    footer {
-      padding: 12px;
-      text-align: center;
-      color: #a7a8b3;
-      font-size: 12px;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .speaking .mouth { animation: none; }
-    }
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100dvh;background:#101116;color:#fff;font-family:system-ui,sans-serif;display:flex;flex-direction:column}
+    header{padding:16px;font-size:20px;font-weight:700;border-bottom:1px solid #30313a}
+    main{width:100%;max-width:600px;margin:auto;padding:16px;flex:1;display:flex;flex-direction:column;gap:14px}
+    .portrait{position:relative;width:100%;overflow:hidden;border-radius:18px;background:#181923}
+    .portrait img{display:block;width:100%;height:auto}
+    /* Mouth overlay is an approximation; adjust these percentages if it misses the lips. */
+    .mouth{position:absolute;left:44.5%;top:54.4%;width:11%;height:2.2%;border-radius:50%;background:rgba(70,7,19,.82);border:1px solid rgba(35,0,8,.65);transform:translate(-50%,-50%) scaleY(.12);transform-origin:center;pointer-events:none;overflow:hidden;transition:transform 65ms linear}
+    .mouth::before{content:"";position:absolute;left:12%;right:12%;top:8%;height:25%;border-radius:50%;background:rgba(255,220,220,.85);opacity:0}
+    .mouth::after{content:"";position:absolute;left:25%;right:25%;bottom:0;height:30%;border-radius:50% 50% 0 0;background:rgba(180,55,75,.8);opacity:0}
+    .mouth.v-closed{transform:translate(-50%,-50%) scaleY(.08);background:rgba(95,28,40,.4)}
+    .mouth.v-small{transform:translate(-50%,-50%) scaleY(.35)}
+    .mouth.v-mid{transform:translate(-50%,-50%) scaleY(.75)}
+    .mouth.v-wide{transform:translate(-50%,-50%) scaleY(1.15)}
+    .mouth.v-wide::before,.mouth.v-mid::before{opacity:.8}
+    .mouth.v-mid::after,.mouth.v-wide::after{opacity:.6}
+    textarea{width:100%;min-height:90px;resize:vertical;border:1px solid #393b49;border-radius:12px;padding:12px;color:white;background:#1b1c25;font:inherit}
+    .buttons{display:flex;gap:10px}
+    button{flex:1;padding:13px 10px;border:0;border-radius:12px;font:inherit;font-weight:650;cursor:pointer}
+    #speak{background:#7567ff;color:white}#stop{background:#30313a;color:white}
+    #status{color:#c4c5d0;font-size:14px;min-height:22px}
+    footer{padding:12px;text-align:center;color:#a7a8b3;font-size:12px}
+    @media(prefers-reduced-motion:reduce){.mouth{transition:none}}
   </style>
 </head>
-
 <body>
-  <header>ZOYA AI</header>
+<header>ZOYA AI</header>
+<main>
+  <div class="portrait" id="portrait">
+    <img src="./avatar.png" alt="Zoya AI Assistant" onerror="document.getElementById('status').textContent='avatar.png नहीं मिली। GitHub में फ़ाइल का नाम और स्थान जाँचें।'">
+    <div class="mouth v-closed" id="mouth" aria-hidden="true"></div>
+  </div>
+  <textarea id="message" placeholder="यहाँ हिंदी में कुछ लिखें…">नमस्ते! मैं ज़ोया हूँ। बताइए, मैं आपकी क्या मदद कर सकती हूँ?</textarea>
+  <div class="buttons"><button id="speak">🔊 बोलकर सुनाओ</button><button id="stop">⏹ रोकें</button></div>
+  <div id="status" role="status">फोटो और आवाज़ का परीक्षण करने के लिए बटन दबाएँ।</div>
+</main>
+<footer>Zoya AI · Hindi Lip-Sync Preview</footer>
+<script>
+const portrait=document.getElementById('portrait');
+const mouth=document.getElementById('mouth');
+const message=document.getElementById('message');
+const status=document.getElementById('status');
+const speakButton=document.getElementById('speak');
+let mouthTimer=null;
+let stopRequested=false;
 
-  <main>
-    <div class="portrait" id="portrait">
-      <img src="./avatar.png" alt="Zoya AI Assistant"
-           onerror="document.getElementById('status').textContent='avatar.png नहीं मिली। GitHub में फ़ाइल का नाम और स्थान जाँचें।'">
-      <div class="mouth"></div>
-    </div>
-
-    <textarea id="message"
-      placeholder="यहाँ हिंदी में कुछ लिखें…">नमस्ते! मैं ज़ोया हूँ। बताइए, मैं आपकी क्या मदद कर सकती हूँ?</textarea>
-
-    <div class="buttons">
-      <button id="speak">🔊 बोलकर सुनाओ</button>
-      <button id="stop">⏹ रोकें</button>
-    </div>
-
-    <div id="status" role="status">फोटो और आवाज़ का परीक्षण करने के लिए बटन दबाएँ।</div>
-  </main>
-
-  <footer>Zoya AI · Free Avatar Demo</footer>
-
-  <script>
-    const portrait = document.getElementById('portrait');
-    const message = document.getElementById('message');
-    const status = document.getElementById('status');
-    const speakButton = document.getElementById('speak');
-
-    function stopSpeaking() {
-      window.speechSynthesis.cancel();
-      portrait.classList.remove('speaking');
-      speakButton.disabled = false;
-    }
-
-    speakButton.addEventListener('click', () => {
-      const text = message.value.trim();
-
-      if (!text) {
-        status.textContent = 'पहले कुछ टेक्स्ट लिखें।';
-        return;
-      }
-
-      if (!('speechSynthesis' in window)) {
-        status.textContent = 'इस ब्राउज़र में टेक्स्ट-टू-स्पीच उपलब्ध नहीं है।';
-        return;
-      }
-
-      stopSpeaking();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'hi-IN';
-      utterance.rate = 0.92;
-
-      utterance.onstart = () => {
-        portrait.classList.add('speaking');
-        speakButton.disabled = true;
-        status.textContent = 'ज़ोया बोल रही है…';
-      };
-
-      utterance.onend = () => {
-        portrait.classList.remove('speaking');
-        speakButton.disabled = false;
-        status.textContent = 'बोलना पूरा हुआ।';
-      };
-
-      utterance.onerror = () => {
-        portrait.classList.remove('speaking');
-        speakButton.disabled = false;
-        status.textContent = 'आवाज़ नहीं चल पाई। दोबारा प्रयास करें।';
-      };
-
-      window.speechSynthesis.speak(utterance);
-    });
-
-    document.getElementById('stop').addEventListener('click', () => {
-      stopSpeaking();
-      status.textContent = 'आवाज़ रोक दी गई।';
-    });
-  </script>
+/* Hindi character-based estimates, not true audio/phoneme analysis. */
+function mouthShapeFor(ch){
+  if(!ch || /[\s।,!?.;:]/u.test(ch)) return 'v-closed';
+  if(/[अआााॅॉ]/u.test(ch)) return 'v-wide';
+  if(/[इईिीएेऐै]/u.test(ch)) return 'v-mid';
+  if(/[उऊुूओोऔौ]/u.test(ch)) return 'v-small';
+  if(/[कखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसहक़ख़ग़ज़ड़ढ़]/u.test(ch)) return 'v-mid';
+  return 'v-small';
+}
+function setMouth(shape){
+  mouth.className='mouth '+shape;
+}
+function startApproxLipSync(text, durationMs){
+  clearInterval(mouthTimer);
+  const chars=Array.from(text);
+  let start=performance.now();
+  mouthTimer=setInterval(()=>{
+    const elapsed=performance.now()-start;
+    const index=Math.min(chars.length-1,Math.floor((elapsed/Math.max(durationMs,1))*chars.length));
+    setMouth(mouthShapeFor(chars[index]));
+    if(elapsed>=durationMs){clearInterval(mouthTimer);mouthTimer=null;setMouth('v-closed');}
+  },75);
+}
+function stopSpeaking(){
+  stopRequested=true;
+  window.speechSynthesis.cancel();
+  clearInterval(mouthTimer);mouthTimer=null;
+  setMouth('v-closed');
+  speakButton.disabled=false;
+}
+speakButton.addEventListener('click',()=>{
+  const text=message.value.trim();
+  if(!text){status.textContent='पहले कुछ टेक्स्ट लिखें।';return;}
+  if(!('speechSynthesis' in window)){status.textContent='इस ब्राउज़र में टेक्स्ट-टू-स्पीच उपलब्ध नहीं है।';return;}
+  stopSpeaking();
+  stopRequested=false;
+  const utterance=new SpeechSynthesisUtterance(text);
+  utterance.lang='hi-IN';utterance.rate=0.92;
+  utterance.onstart=()=>{
+    speakButton.disabled=true;
+    status.textContent='ज़ोया बोल रही है… (होंठों की गति अनुमानित है)';
+    const estimatedMs=Math.max(1200,(text.length/8)*1000/utterance.rate);
+    startApproxLipSync(text,estimatedMs);
+  };
+  utterance.onend=()=>{
+    clearInterval(mouthTimer);mouthTimer=null;setMouth('v-closed');
+    speakButton.disabled=false;
+    if(!stopRequested)status.textContent='बोलना पूरा हुआ।';
+  };
+  utterance.onerror=()=>{
+    clearInterval(mouthTimer);mouthTimer=null;setMouth('v-closed');
+    speakButton.disabled=false;
+    if(!stopRequested)status.textContent='आवाज़ नहीं चल पाई। दोबारा प्रयास करें।';
+  };
+  window.speechSynthesis.speak(utterance);
+});
+document.getElementById('stop').addEventListener('click',()=>{
+  stopSpeaking();status.textContent='आवाज़ रोक दी गई।';
+});
+</script>
 </body>
 </html>
