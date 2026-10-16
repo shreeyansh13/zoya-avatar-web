@@ -32,7 +32,7 @@ textarea{width:100%;min-height:92px;resize:vertical;border:1px solid #393b49;bor
 <header>ZOYA AI · 3D AVATAR</header>
 <main>
   <section id="stage" aria-label="Zoya 3D avatar"></section>
-  <textarea id="message" placeholder="अपना संदेश हिंदी में लिखें…">नमस्ते! मैं ज़ोया हूँ। बताइए, मैं आपकी क्या मदद कर सकती हूँ?</textarea>
+  <textarea id="message" placeholder="अपना संदेश हिंदी में लिखें…">नमस्ते ज़ोया, आज की तारीख क्या है?</textarea>
   <div class="buttons"><button id="send">💬 पूछें और सुनें</button><button id="stop">⏹ रोकें</button></div>
   <div id="status" role="status">3D मॉड्यूल शुरू हो रहे हैं…</div>
   <div class="note">यह 3D VRM परीक्षण संस्करण है। मौजूदा Gemini /chat endpoint को ही कॉल करता है; backend और Call Flow नहीं बदलता। आवाज़ browser speech synthesis से आती है और उसके साथ अनुमानित mouth animation चलता है।</div>
@@ -68,12 +68,25 @@ function speak(text){
   window.speechSynthesis.speak(utterance);
 }
 async function askBackend(userText){
-  setStatus('मौजूदा Gemini /chat से जवाब माँगा जा रहा है…');
-  const response=await fetch('https://zoya-backend-ctr8.onrender.com/chat',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({message:userText})
-  });
+  setStatus('Gemini से जवाब माँगा जा रहा है… पहली request में backend जागने के कारण थोड़ा समय लग सकता है।');
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  let response;
+  try {
+    response = await fetch('https://zoya-backend-ctr8.onrender.com/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:userText}),
+      signal: controller.signal
+    });
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error('25 सेकंड में जवाब नहीं आया। Backend cold start या Gemini में देरी हो सकती है।');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
   if(!response.ok) throw new Error('Backend HTTP '+response.status);
   const data=await response.json();
   const answer=typeof data==='string'?data:
@@ -134,8 +147,9 @@ function frameModel(model){
   model.position.y-=bounds.min.y*scale;
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
-  camera.position.set(0,1.25,4.0);
-  camera.lookAt(0,1.05,0);
+  // Portrait framing: show Zoya from head to waist rather than full body.
+  camera.position.set(0,1.32,2.55);
+  camera.lookAt(0,1.20,0);
   camera.updateProjectionMatrix();
 }
 async function init(){
@@ -172,8 +186,7 @@ async function init(){
     if(VRMUtils && typeof VRMUtils.rotateVRM0==='function') VRMUtils.rotateVRM0(vrm);
     scene.add(vrm.scene);
 
-    // Try a front-of-chest crossed-arm pose on the model's RAW bones.
-    // Access the humanoid directly to avoid an undefined local variable.
+    // Natural waist-level pose: upper arms angled down/out slightly, forearms bend inward toward hips.
     const rawBone = name => vrm.humanoid?.getRawBoneNode(name);
     const leftUpperArm = rawBone('leftUpperArm');
     const rightUpperArm = rawBone('rightUpperArm');
@@ -182,12 +195,12 @@ async function init(){
     const leftHand = rawBone('leftHand');
     const rightHand = rawBone('rightHand');
     const poseRotations = [
-      [leftUpperArm, 0.10, 0.00, 0.95],
-      [rightUpperArm, 0.10, 0.00, -0.95],
-      [leftLowerArm, -1.05, 0.00, 0.20],
-      [rightLowerArm, -1.05, 0.00, -0.20],
-      [leftHand, 0.00, 0.00, 0.18],
-      [rightHand, 0.00, 0.00, -0.18]
+      [leftUpperArm, 0.00, 0.00, 0.30],
+      [rightUpperArm, 0.00, 0.00, -0.30],
+      [leftLowerArm, 0.00, 0.00, 0.85],
+      [rightLowerArm, 0.00, 0.00, -0.85],
+      [leftHand, 0.00, 0.00, 0.08],
+      [rightHand, 0.00, 0.00, -0.08]
     ];
     applyCrossedPose = () => {
       for (const [node, x, y, z] of poseRotations) {
