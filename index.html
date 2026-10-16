@@ -164,6 +164,20 @@ async function init(){
     // Compatibility guard in case the utility is absent in a loaded package build.
     if(VRMUtils && typeof VRMUtils.rotateVRM0==='function') VRMUtils.rotateVRM0(vrm);
     scene.add(vrm.scene);
+
+    // Relax the default T-pose: lower both upper arms and add a small natural elbow bend.
+    // Apply to normalized humanoid bones so the original VRM file stays untouched.
+    const humanoid = vrm.humanoid;
+    const leftUpperArm = humanoid?.getNormalizedBoneNode('leftUpperArm');
+    const rightUpperArm = humanoid?.getNormalizedBoneNode('rightUpperArm');
+    const leftLowerArm = humanoid?.getNormalizedBoneNode('leftLowerArm');
+    const rightLowerArm = humanoid?.getNormalizedBoneNode('rightLowerArm');
+
+    if (leftUpperArm) leftUpperArm.rotation.z = -0.62;
+    if (rightUpperArm) rightUpperArm.rotation.z = 0.62;
+    if (leftLowerArm) leftLowerArm.rotation.z = -0.12;
+    if (rightLowerArm) rightLowerArm.rotation.z = 0.12;
+
     frameModel(vrm.scene);
     setStatus('3D Avatar तैयार है। संदेश लिखकर “पूछें और सुनें” दबाएँ।');
     animate();
