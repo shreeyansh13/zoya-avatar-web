@@ -173,8 +173,8 @@ async function init(){
     scene.add(vrm.scene);
 
     // Try a front-of-chest crossed-arm pose on the model's RAW bones.
-    // The previous normalized-bone rotations were being overridden by the VRM update cycle.
-    const rawBone = name => humanoid?.getRawBoneNode(name);
+    // Access the humanoid directly to avoid an undefined local variable.
+    const rawBone = name => vrm.humanoid?.getRawBoneNode(name);
     const leftUpperArm = rawBone('leftUpperArm');
     const rightUpperArm = rawBone('rightUpperArm');
     const leftLowerArm = rawBone('leftLowerArm');
