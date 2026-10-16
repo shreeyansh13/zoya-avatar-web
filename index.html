@@ -208,12 +208,14 @@ async function init(){
     // Stronger resting bend: bring forearms inward toward the chest.
     // These offsets affect only the avatar's arm/hand bones; backend and voice stay unchanged.
     const restAngles = {
-      leftUpper:  [0.00,  0.22,  0.72],
-      rightUpper: [0.00, -0.22, -0.72],
-      leftLower:  [0.00,  0.10, -1.12],
-      rightLower: [0.00, -0.10,  1.12],
-      leftHand:   [0.00,  0.00,  0.08],
-      rightHand:  [0.00,  0.00, -0.08]
+      // Rotate upper arms slightly forward and inward; reverse forearm bend
+      // so the hands travel toward the center of the chest instead of outward.
+      leftUpper:  [0.12,  0.18,  0.42],
+      rightUpper: [0.12, -0.18, -0.42],
+      leftLower:  [0.00,  0.08,  1.18],
+      rightLower: [0.00, -0.08, -1.18],
+      leftHand:   [0.00,  0.00,  0.06],
+      rightHand:  [0.00,  0.00, -0.06]
     };
 
     applyCrossedPose = (blend = 0, phase = 0) => {
