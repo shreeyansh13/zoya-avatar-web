@@ -45,6 +45,7 @@ const sendBtn=document.getElementById('send');
 let THREE, GLTFLoader, VRMLoaderPlugin, VRMUtils;
 let vrm=null,renderer=null,scene=null,camera=null,clock=null;
 let utterance=null,speaking=false,mouthPhase=0,rafId=0;
+let applyCrossedPose=()=>{};
 
 function setStatus(message){statusEl.textContent=message;}
 function stopVoice(){
@@ -57,13 +58,13 @@ function stopVoice(){
   }
 }
 function speak(text){
-  if(!('speechSynthesis' in window)){setStatus('इस ब्राउज़र में आवाज़ उपलब्ध नहीं है।');return;}
+  if(!('speechSynthesis' in window)){setStatus('इस ब्राउज़र में आवाज़ उपलब्ध नहीं है। Chrome में खोलकर जाँचें।');sendBtn.disabled=false;return;}
   stopVoice();
   utterance=new SpeechSynthesisUtterance(text);
   utterance.lang='hi-IN'; utterance.rate=.94; utterance.pitch=1.02;
   utterance.onstart=()=>{speaking=true;setStatus('ज़ोया बोल रही है…');};
   utterance.onend=()=>{speaking=false;setStatus('जवाब पूरा हुआ।');};
-  utterance.onerror=(event)=>{speaking=false;setStatus('आवाज़ की त्रुटि: '+(event.error||'speech error'));};
+  utterance.onerror=(event)=>{speaking=false;sendBtn.disabled=false;setStatus('आवाज़ की त्रुटि: '+(event.error||'speech error'));};
   window.speechSynthesis.speak(utterance);
 }
 async function askBackend(userText){
@@ -92,8 +93,8 @@ sendBtn.addEventListener('click',async()=>{
     speak(answer);
   }catch(error){
     const msg=error?.message||'अज्ञात नेटवर्क त्रुटि';
-    if (error instanceof TypeError || /fetch|network/i.test(msg)) {
-      setStatus('Gemini request browser से नहीं पहुँच पाई। Backend health जाँचें; अगर वह running है तो CORS में इस वेबसाइट का origin अनुमति-प्राप्त होना चाहिए।');
+    if (error instanceof TypeError || /fetch|network|failed to fetch/i.test(msg)) {
+      setStatus('AI कनेक्शन ब्लॉक हुआ: यह CORS/preflight या नेटवर्क समस्या लगती है। Backend health running होने पर भी backend को इस वेबसाइट के origin की अनुमति देनी होगी; frontend अकेले CORS bypass नहीं कर सकता।');
     } else {
       setStatus('Gemini कनेक्शन असफल: '+msg+'. Backend में कोई बदलाव नहीं किया गया।');
     }
@@ -110,6 +111,8 @@ function animate(){
   const delta=clock.getDelta();
   if(vrm){
     vrm.update(delta);
+    // Reapply the chosen pose after VRM updates so the model's default pose cannot overwrite it.
+    try{applyCrossedPose();}catch(_){}
     if(vrm.expressionManager){
       let amount=0;
       if(speaking){mouthPhase+=delta*14;amount=.12+Math.abs(Math.sin(mouthPhase))*.38;}
@@ -169,34 +172,29 @@ async function init(){
     if(VRMUtils && typeof VRMUtils.rotateVRM0==='function') VRMUtils.rotateVRM0(vrm);
     scene.add(vrm.scene);
 
-    // Approximate a gentle crossed-hands pose at upper chest level.
-    // Pose normalized bones only; the original sample_a.vrm asset remains unchanged.
-    const humanoid = vrm.humanoid;
-    const bone = name => humanoid?.getNormalizedBoneNode(name);
-    const leftUpperArm = bone('leftUpperArm');
-    const rightUpperArm = bone('rightUpperArm');
-    const leftLowerArm = bone('leftLowerArm');
-    const rightLowerArm = bone('rightLowerArm');
-    const leftHand = bone('leftHand');
-    const rightHand = bone('rightHand');
-
-    // Bring shoulders/upper arms down and slightly forward from the raised V pose.
-    if (leftUpperArm) {
-      leftUpperArm.rotation.set(-0.42, -0.20, 0.62);
-    }
-    if (rightUpperArm) {
-      rightUpperArm.rotation.set(-0.42, 0.20, -0.62);
-    }
-    // Reverse the previous elbow bend: aim forearms inward across the upper chest.
-    if (leftLowerArm) {
-      leftLowerArm.rotation.set(0.08, 0.12, 1.28);
-    }
-    if (rightLowerArm) {
-      rightLowerArm.rotation.set(0.08, -0.12, -1.28);
-    }
-    // Rotate wrists inward so the hands face toward the center.
-    if (leftHand) leftHand.rotation.set(0.08, 0.28, 0.12);
-    if (rightHand) rightHand.rotation.set(0.08, -0.28, -0.12);
+    // Try a front-of-chest crossed-arm pose on the model's RAW bones.
+    // The previous normalized-bone rotations were being overridden by the VRM update cycle.
+    const rawBone = name => humanoid?.getRawBoneNode(name);
+    const leftUpperArm = rawBone('leftUpperArm');
+    const rightUpperArm = rawBone('rightUpperArm');
+    const leftLowerArm = rawBone('leftLowerArm');
+    const rightLowerArm = rawBone('rightLowerArm');
+    const leftHand = rawBone('leftHand');
+    const rightHand = rawBone('rightHand');
+    const poseRotations = [
+      [leftUpperArm, 0.10, 0.00, 0.95],
+      [rightUpperArm, 0.10, 0.00, -0.95],
+      [leftLowerArm, -1.05, 0.00, 0.20],
+      [rightLowerArm, -1.05, 0.00, -0.20],
+      [leftHand, 0.00, 0.00, 0.18],
+      [rightHand, 0.00, 0.00, -0.18]
+    ];
+    applyCrossedPose = () => {
+      for (const [node, x, y, z] of poseRotations) {
+        if (node) node.rotation.set(x, y, z);
+      }
+    };
+    applyCrossedPose();
 
     frameModel(vrm.scene);
     setStatus('3D Avatar तैयार है। संदेश लिखकर “पूछें और सुनें” दबाएँ।');
