@@ -126,7 +126,8 @@ function animate(){
     vrm.update(delta);
     const targetBlend = speaking ? 1 : 0;
     gestureBlend += (targetBlend - gestureBlend) * Math.min(1, delta * 3.5);
-    if (speaking) gesturePhase += delta * 5.0;
+    // Slower, more natural gesture speed
+    if (speaking) gesturePhase += delta * 3.0;
     try{applyCrossedPose(gestureBlend, gesturePhase);}catch(_){}
     if(vrm.expressionManager){
       let amount=0;
@@ -142,23 +143,23 @@ function frameModel(model){
   const size=bounds.getSize(new THREE.Vector3());
   const center=bounds.getCenter(new THREE.Vector3());
   if(!Number.isFinite(size.y)||size.y<=0) throw new Error('मॉडल की ऊँचाई पढ़ नहीं पाई।');
-  // Scale to a consistent humanoid height and center its body around the camera target.
+  
   const scale=1.8/size.y;
   model.scale.setScalar(scale);
   model.position.x-=center.x*scale;
   model.position.y-=bounds.min.y*scale;
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
-  // Portrait framing: show Zoya from head to waist rather than full body.
-  camera.position.set(0,1.32,2.0);
-  camera.lookAt(0,1.20,0);
+  
+  // UPDATED: Framing slightly closer to match the portrait style of the reference image.
+  camera.position.set(0, 1.35, 1.6);
+  camera.lookAt(0, 1.25, 0);
   camera.updateProjectionMatrix();
 }
 async function init(){
   let stageTimeout;
   try{
     setStatus('3D libraries डाउनलोड हो रही हैं…');
-    // Import errors are caught here, instead of leaving the page stuck at the initial status.
     const imports=await Promise.all([
       import('three'),
       import('three/addons/loaders/GLTFLoader.js'),
@@ -184,12 +185,9 @@ async function init(){
     const gltf=await loader.loadAsync('./models/sample_a.vrm');
     vrm=gltf.userData.vrm;
     if(!vrm)throw new Error('फ़ाइल से VRM डेटा नहीं मिला।');
-    // Compatibility guard in case the utility is absent in a loaded package build.
     if(VRMUtils && typeof VRMUtils.rotateVRM0==='function') VRMUtils.rotateVRM0(vrm);
     scene.add(vrm.scene);
 
-    // Natural bent-arm pose with expressive, speech-synced gestures.
-    // Use normalized VRM bones and preserve their authored rest rotations.
     const bone = name => vrm.humanoid?.getNormalizedBoneNode(name);
     const poseBones = {
       leftUpper: bone('leftUpperArm'),
@@ -205,29 +203,28 @@ async function init(){
       if (node) poseBase[key] = node.quaternion.clone();
     }
 
-    // Stronger resting bend: bring forearms inward toward the chest.
-    // These offsets affect only the avatar's arm/hand bones; backend and voice stay unchanged.
+    // UPDATED: Natural resting pose. Arms lowered from T-pose and elbows bent slightly forward.
     const restAngles = {
-      // Rotate upper arms slightly forward and inward; reverse forearm bend
-      // so the hands travel toward the center of the chest instead of outward.
-      leftUpper:  [0.12,  0.18,  0.42],
-      rightUpper: [0.12, -0.18, -0.42],
-      leftLower:  [0.00,  0.08,  1.18],
-      rightLower: [0.00, -0.08, -1.18],
-      leftHand:   [0.00,  0.00,  0.06],
-      rightHand:  [0.00,  0.00, -0.06]
+      leftUpper:  [0.05,  0.0, -1.15], // Lower the upper arm to the side
+      rightUpper: [0.05,  0.0,  1.15], // Lower the upper arm to the side
+      leftLower:  [0.0,   0.85,  0.0], // Bend elbow forward/inward
+      rightLower: [0.0,  -0.85,  0.0], // Bend elbow forward/inward
+      leftHand:   [0.0,   0.0,   0.0],
+      rightHand:  [0.0,   0.0,   0.0]
     };
 
     applyCrossedPose = (blend = 0, phase = 0) => {
       const a = Math.sin(phase);
       const b = Math.sin(phase * 0.72 + 1.0);
+      
+      // UPDATED: Very subtle gestures while speaking to avoid jerky movements
       const gestureAngles = {
-        leftUpper:  [0.06 * a * blend,  0.08 * b * blend,  0.10 * a * blend],
-        rightUpper: [-0.06 * b * blend, -0.08 * a * blend, -0.10 * b * blend],
-        leftLower:  [0.08 * Math.max(0, a) * blend, 0.04 * b * blend, -0.14 * b * blend],
-        rightLower: [0.08 * Math.max(0, b) * blend, -0.04 * a * blend, 0.14 * a * blend],
-        leftHand:   [0.04 * b * blend,  0.07 * a * blend,  0.06 * a * blend],
-        rightHand:  [0.04 * a * blend, -0.07 * b * blend, -0.06 * b * blend]
+        leftUpper:  [0.03 * a * blend, 0.0, 0.05 * a * blend],
+        rightUpper: [-0.03 * b * blend, 0.0, -0.05 * b * blend],
+        leftLower:  [0.0, 0.1 * Math.sin(phase * 0.8) * blend, 0.0],
+        rightLower: [0.0, -0.1 * Math.sin(phase * 0.9) * blend, 0.0],
+        leftHand:   [0.0, 0.05 * a * blend, 0.0],
+        rightHand:  [0.0, -0.05 * b * blend, 0.0]
       };
 
       for (const key of Object.keys(poseBones)) {
