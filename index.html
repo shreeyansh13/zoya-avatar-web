@@ -126,9 +126,10 @@ function animate(){
     vrm.update(delta);
     const targetBlend = speaking ? 1 : 0;
     gestureBlend += (targetBlend - gestureBlend) * Math.min(1, delta * 3.5);
-    // Slower, more natural gesture speed
+    
     if (speaking) gesturePhase += delta * 3.0;
     try{applyCrossedPose(gestureBlend, gesturePhase);}catch(_){}
+    
     if(vrm.expressionManager){
       let amount=0;
       if(speaking){mouthPhase+=delta*14;amount=.12+Math.abs(Math.sin(mouthPhase))*.38;}
@@ -151,13 +152,12 @@ function frameModel(model){
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
   
-  // UPDATED: Framing slightly closer to match the portrait style of the reference image.
-  camera.position.set(0, 1.35, 1.6);
-  camera.lookAt(0, 1.25, 0);
+  // UPDATED: Camera moved back (z: 2.1) and target raised to shift avatar down in frame.
+  camera.position.set(0, 1.45, 2.1);
+  camera.lookAt(0, 1.35, 0);
   camera.updateProjectionMatrix();
 }
 async function init(){
-  let stageTimeout;
   try{
     setStatus('3D libraries डाउनलोड हो रही हैं…');
     const imports=await Promise.all([
@@ -175,9 +175,11 @@ async function init(){
     renderer.setSize(stageEl.clientWidth,stageEl.clientHeight);
     renderer.outputColorSpace=THREE.SRGBColorSpace;
     stageEl.appendChild(renderer.domElement);
-    scene.add(new THREE.HemisphereLight(0xffffff,0x62627b,2));
-    const key=new THREE.DirectionalLight(0xffffff,2);key.position.set(1,3,4);scene.add(key);
-    const fill=new THREE.DirectionalLight(0xa9b8ff,.7);fill.position.set(-3,2,1);scene.add(fill);
+    
+    scene.add(new THREE.HemisphereLight(0xffffff,0x62627b,1.5));
+    const key=new THREE.DirectionalLight(0xffffff,1.8);key.position.set(1,2,3);scene.add(key);
+    const fill=new THREE.DirectionalLight(0xa9b8ff,0.6);fill.position.set(-2,1,1);scene.add(fill);
+    
     clock=new THREE.Clock();
     setStatus('models/sample_a.vrm डाउनलोड हो रहा है…');
     const loader=new GLTFLoader();
@@ -203,28 +205,29 @@ async function init(){
       if (node) poseBase[key] = node.quaternion.clone();
     }
 
-    // UPDATED: Natural resting pose. Arms lowered from T-pose and elbows bent slightly forward.
+    // FIXED: Reversed Z-axis values (-1.15, +1.15) to force hands DOWN instead of UP.
+    // Added a slight forward bend (X-axis) and inward elbow bend (Y-axis).
     const restAngles = {
-      leftUpper:  [0.05,  0.0, -1.15], // Lower the upper arm to the side
-      rightUpper: [0.05,  0.0,  1.15], // Lower the upper arm to the side
-      leftLower:  [0.0,   0.85,  0.0], // Bend elbow forward/inward
-      rightLower: [0.0,  -0.85,  0.0], // Bend elbow forward/inward
-      leftHand:   [0.0,   0.0,   0.0],
-      rightHand:  [0.0,   0.0,   0.0]
+      leftUpper:  [-0.1, 0.0, -1.15],  // Arm points DOWN and slightly forward
+      rightUpper: [-0.1, 0.0,  1.15],  // Arm points DOWN and slightly forward
+      leftLower:  [0.0,  0.6,  0.0],   // Elbow bends inward
+      rightLower: [0.0, -0.6,  0.0],   // Elbow bends inward
+      leftHand:   [0.0,  0.0,  0.0],
+      rightHand:  [0.0,  0.0,  0.0]
     };
 
     applyCrossedPose = (blend = 0, phase = 0) => {
       const a = Math.sin(phase);
       const b = Math.sin(phase * 0.72 + 1.0);
       
-      // UPDATED: Very subtle gestures while speaking to avoid jerky movements
+      // Very subtle, natural gestures while speaking
       const gestureAngles = {
-        leftUpper:  [0.03 * a * blend, 0.0, 0.05 * a * blend],
-        rightUpper: [-0.03 * b * blend, 0.0, -0.05 * b * blend],
-        leftLower:  [0.0, 0.1 * Math.sin(phase * 0.8) * blend, 0.0],
-        rightLower: [0.0, -0.1 * Math.sin(phase * 0.9) * blend, 0.0],
-        leftHand:   [0.0, 0.05 * a * blend, 0.0],
-        rightHand:  [0.0, -0.05 * b * blend, 0.0]
+        leftUpper:  [0.0, 0.0, 0.02 * a * blend],
+        rightUpper: [0.0, 0.0, -0.02 * a * blend],
+        leftLower:  [0.0, 0.05 * Math.sin(phase * 0.8) * blend, 0.0],
+        rightLower: [0.0, -0.05 * Math.sin(phase * 0.9) * blend, 0.0],
+        leftHand:   [0.0, 0.02 * a * blend, 0.0],
+        rightHand:  [0.0, -0.02 * b * blend, 0.0]
       };
 
       for (const key of Object.keys(poseBones)) {
