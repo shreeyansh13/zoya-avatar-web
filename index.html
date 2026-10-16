@@ -152,9 +152,10 @@ function frameModel(model){
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
   
-  // UPDATED: Camera moved back (z: 2.1) and target raised to shift avatar down in frame.
-  camera.position.set(0, 1.45, 2.1);
-  camera.lookAt(0, 1.35, 0);
+  // UPDATED: Camera pulled back to z=2.4 to ensure arms are not cut off when lowered.
+  // Target slightly raised to shift the avatar down in the frame.
+  camera.position.set(0, 1.4, 2.4);
+  camera.lookAt(0, 1.25, 0);
   camera.updateProjectionMatrix();
 }
 async function init(){
@@ -205,22 +206,23 @@ async function init(){
       if (node) poseBase[key] = node.quaternion.clone();
     }
 
-    // FIXED: Reversed Z-axis values (-1.15, +1.15) to force hands DOWN instead of UP.
-    // Added a slight forward bend (X-axis) and inward elbow bend (Y-axis).
+    // FIXED: Inverted Z-axis back to POSITIVE for left (+1.15) and NEGATIVE for right (-1.15) 
+    // to bring hands DOWN to a natural resting position.
+    // Added slight forward rotation (X-axis) and inward elbow bend (Y-axis).
     const restAngles = {
-      leftUpper:  [-0.1, 0.0, -1.15],  // Arm points DOWN and slightly forward
-      rightUpper: [-0.1, 0.0,  1.15],  // Arm points DOWN and slightly forward
-      leftLower:  [0.0,  0.6,  0.0],   // Elbow bends inward
-      rightLower: [0.0, -0.6,  0.0],   // Elbow bends inward
-      leftHand:   [0.0,  0.0,  0.0],
-      rightHand:  [0.0,  0.0,  0.0]
+      leftUpper:  [0.1, 0.0, 1.15],  // Arm points DOWN and slightly forward
+      rightUpper: [0.1, 0.0, -1.15], // Arm points DOWN and slightly forward
+      leftLower:  [0.0, 0.4, 0.0],   // Elbow bent inward
+      rightLower: [0.0, -0.4, 0.0],  // Elbow bent inward
+      leftHand:   [0.0, 0.0, 0.0],
+      rightHand:  [0.0, 0.0, 0.0]
     };
 
     applyCrossedPose = (blend = 0, phase = 0) => {
       const a = Math.sin(phase);
       const b = Math.sin(phase * 0.72 + 1.0);
       
-      // Very subtle, natural gestures while speaking
+      // Very subtle, natural gestures while speaking to prevent jerky arm movements
       const gestureAngles = {
         leftUpper:  [0.0, 0.0, 0.02 * a * blend],
         rightUpper: [0.0, 0.0, -0.02 * a * blend],
