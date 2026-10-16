@@ -152,7 +152,7 @@ function frameModel(model){
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
   
-  // Camera framing to keep head to navel in view (as requested previously)
+  // Camera framing: Head to navel, keeping avatar slightly lower on screen
   camera.position.set(0, 1.4, 2.4);
   camera.lookAt(0, 1.5, 0); 
   camera.updateProjectionMatrix();
@@ -205,21 +205,22 @@ async function init(){
       if (node) poseBase[key] = node.quaternion.clone();
     }
 
-    // UPDATED: Exact values from the provided infographic to bring hands to chest (touching pose).
+    // FIXED: X-axis made POSITIVE to bring arms FORWARD instead of backward.
+    // This brings the hands in front of the chest (Touching pose) as shown in Step 4 of the infographic.
     const restAngles = {
-      leftUpper:  [-0.4,  0.3,  1.1],
-      rightUpper: [-0.4, -0.3, -1.1],
-      leftLower:  [ 0.0,  1.0,  0.0],
-      rightLower: [ 0.0, -1.0,  0.0],
-      leftHand:   [ 0.0,  0.2,  0.0],
-      rightHand:  [ 0.0, -0.2,  0.0]
+      leftUpper:  [ 0.35,  0.45,  1.15],  // Forward (+X), Inward (+Y), Down/Side (+Z)
+      rightUpper: [ 0.35, -0.45, -1.15],  // Forward (+X), Inward (-Y), Down/Side (-Z)
+      leftLower:  [ 0.00,  1.10,  0.00],  // Bend elbow heavily to bring hand to chest
+      rightLower: [ 0.00, -1.10,  0.00],  // Bend elbow heavily to bring hand to chest
+      leftHand:   [ 0.00,  0.25,  0.00],  // Tweak hand to look natural
+      rightHand:  [ 0.00, -0.25,  0.00]   // Tweak hand to look natural
     };
 
     applyCrossedPose = (blend = 0, phase = 0) => {
       const a = Math.sin(phase);
       const b = Math.sin(phase * 0.72 + 1.0);
       
-      // UPDATED: Exact subtle gesture movements from the provided infographic.
+      // Subtle gestures while speaking (as per the infographic's green section)
       const gestureAngles = {
         leftUpper:  [0.02 * a * blend, 0.02 * b * blend, 0.0],
         rightUpper: [0.02 * a * blend, -0.02 * b * blend, 0.0],
