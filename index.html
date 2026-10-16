@@ -165,18 +165,34 @@ async function init(){
     if(VRMUtils && typeof VRMUtils.rotateVRM0==='function') VRMUtils.rotateVRM0(vrm);
     scene.add(vrm.scene);
 
-    // Relax the default T-pose: lower both upper arms and add a small natural elbow bend.
-    // Apply to normalized humanoid bones so the original VRM file stays untouched.
+    // Approximate a gentle crossed-hands pose at upper chest level.
+    // Pose normalized bones only; the original sample_a.vrm asset remains unchanged.
     const humanoid = vrm.humanoid;
-    const leftUpperArm = humanoid?.getNormalizedBoneNode('leftUpperArm');
-    const rightUpperArm = humanoid?.getNormalizedBoneNode('rightUpperArm');
-    const leftLowerArm = humanoid?.getNormalizedBoneNode('leftLowerArm');
-    const rightLowerArm = humanoid?.getNormalizedBoneNode('rightLowerArm');
+    const bone = name => humanoid?.getNormalizedBoneNode(name);
+    const leftUpperArm = bone('leftUpperArm');
+    const rightUpperArm = bone('rightUpperArm');
+    const leftLowerArm = bone('leftLowerArm');
+    const rightLowerArm = bone('rightLowerArm');
+    const leftHand = bone('leftHand');
+    const rightHand = bone('rightHand');
 
-    if (leftUpperArm) leftUpperArm.rotation.z = -0.62;
-    if (rightUpperArm) rightUpperArm.rotation.z = 0.62;
-    if (leftLowerArm) leftLowerArm.rotation.z = -0.12;
-    if (rightLowerArm) rightLowerArm.rotation.z = 0.12;
+    // Bring shoulders/upper arms down and slightly forward from the raised V pose.
+    if (leftUpperArm) {
+      leftUpperArm.rotation.set(-0.38, -0.32, 0.34);
+    }
+    if (rightUpperArm) {
+      rightUpperArm.rotation.set(-0.38, 0.32, -0.34);
+    }
+    // Bend both elbows inward so forearms approach and cross in front of the chest.
+    if (leftLowerArm) {
+      leftLowerArm.rotation.set(-0.12, 0.15, -1.12);
+    }
+    if (rightLowerArm) {
+      rightLowerArm.rotation.set(-0.12, -0.15, 1.12);
+    }
+    // Turn palms/fingers inward toward one another.
+    if (leftHand) leftHand.rotation.set(0.10, 0.22, -0.20);
+    if (rightHand) rightHand.rotation.set(0.10, -0.22, 0.20);
 
     frameModel(vrm.scene);
     setStatus('3D Avatar तैयार है। संदेश लिखकर “पूछें और सुनें” दबाएँ।');
