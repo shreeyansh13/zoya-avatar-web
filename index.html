@@ -4,136 +4,67 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#101116">
-<title>Zoya AI — Hindi Lip-Sync Preview</title>
+<title>Zoya AI — Hindi Voice Preview</title>
 <style>
 *{box-sizing:border-box}
+:root{color-scheme:dark}
 body{margin:0;min-height:100dvh;background:#101116;color:#fff;font-family:system-ui,sans-serif;display:flex;flex-direction:column}
-header{padding:16px;font-size:20px;font-weight:700;border-bottom:1px solid #30313a}
-main{width:100%;max-width:600px;margin:auto;padding:16px;flex:1;display:flex;flex-direction:column;gap:14px}
-.portrait{position:relative;width:100%;overflow:hidden;border-radius:18px;background:#181923}
-.portrait img{display:block;width:100%;height:auto}
-#lipCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+header{padding:14px 16px;font-size:20px;font-weight:700;border-bottom:1px solid #30313a}
+main{width:100%;max-width:600px;margin:0 auto;padding:14px 16px 18px;flex:1;display:flex;flex-direction:column;gap:14px}
+.portrait{position:relative;width:100%;height:clamp(320px,58dvh,560px);overflow:hidden;border-radius:18px;background:#181923;border:1px solid #30313a}
+.portrait img{display:block;width:100%;height:100%;object-fit:cover;object-position:center 24%}
 textarea{width:100%;min-height:90px;resize:vertical;border:1px solid #393b49;border-radius:12px;padding:12px;color:white;background:#1b1c25;font:inherit}
 .buttons{display:flex;gap:10px}
 button{flex:1;padding:13px 10px;border:0;border-radius:12px;font:inherit;font-weight:650;cursor:pointer}
+button:disabled{opacity:.65}
 #speak{background:#7567ff;color:white}#stop{background:#30313a;color:white}
 #status{color:#c4c5d0;font-size:14px;min-height:22px}
+.note{color:#a7a8b3;font-size:12px;line-height:1.45}
 footer{padding:12px;text-align:center;color:#a7a8b3;font-size:12px}
+@media(min-width:520px){main{padding-top:20px}.portrait{height:520px}}
 </style>
 </head>
 <body>
 <header>ZOYA AI</header>
 <main>
   <div class="portrait" id="portrait">
-    <img id="avatar" src="./avatar.png" alt="Zoya AI Assistant" onerror="document.getElementById('status').textContent='avatar.png नहीं मिली। GitHub में फ़ाइल का नाम और स्थान जाँचें।'">
-    <canvas id="lipCanvas" aria-hidden="true"></canvas>
+    <img id="avatar" src="./avatar.png" alt="Zoya AI Assistant"
+      onerror="document.getElementById('status').textContent='avatar.png नहीं मिली। GitHub में फ़ाइल का नाम और स्थान जाँचें।'">
   </div>
   <textarea id="message" placeholder="यहाँ हिंदी में कुछ लिखें…">नमस्ते! मैं ज़ोया हूँ। बताइए, मैं आपकी क्या मदद कर सकती हूँ?</textarea>
   <div class="buttons"><button id="speak">🔊 बोलकर सुनाओ</button><button id="stop">⏹ रोकें</button></div>
-  <div id="status" role="status">फोटो और आवाज़ का परीक्षण करने के लिए बटन दबाएँ।</div>
+  <div id="status" role="status">फोटो और हिंदी आवाज़ का परीक्षण करने के लिए बटन दबाएँ।</div>
+  <div class="note">नोट: यह संस्करण Zoya की फोटो और ब्राउज़र की हिंदी आवाज़ दिखाता है। इसमें अभी वास्तविक 3D animation या audio-based lip-sync शामिल नहीं है।</div>
 </main>
-<footer>Zoya AI · Browser Lip-Sync Preview</footer>
+<footer>Zoya AI · Hindi Voice Preview</footer>
 <script>
-const portrait=document.getElementById('portrait');
-const avatar=document.getElementById('avatar');
-const canvas=document.getElementById('lipCanvas');
-const ctx=canvas.getContext('2d');
 const message=document.getElementById('message');
 const status=document.getElementById('status');
 const speakButton=document.getElementById('speak');
-let anim=null, startedAt=0, duration=1, scriptText='', active=false;
-let currentShape='closed';
-
-/* Canvas renderer: multiple mouth shapes, positioned over the lips in avatar.png.
-   Coordinates are relative to the photo; adjust MOUTH_X/Y if the source photo changes. */
-const MOUTH_X=.49, MOUTH_Y=.445, MOUTH_W=.12, MOUTH_H=.043;
-function resizeCanvas(){
-  const r=portrait.getBoundingClientRect(), dpr=Math.min(window.devicePixelRatio||1,2);
-  canvas.width=Math.round(r.width*dpr); canvas.height=Math.round(r.height*dpr);
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  drawMouth(currentShape);
-}
-function shapeForChar(ch){
-  if(!ch || /[\s।,!?.;:]/u.test(ch)) return 'closed';
-  if(/[आाॅॉअ]/u.test(ch)) return 'open';
-  if(/[इईिीएेऐै]/u.test(ch)) return 'wide';
-  if(/[उऊुूओोऔौ]/u.test(ch)) return 'round';
-  if(/[मपबभ]/u.test(ch)) return 'closed';
-  if(/[कखगघङचछजझञटठडढणतथदधनयरलवशषसहक़ख़ग़ज़ड़ढ़]/u.test(ch)) return 'mid';
-  return 'small';
-}
-function drawMouth(shape){
-  currentShape=shape;
-  const r=portrait.getBoundingClientRect(), w=r.width, h=r.height;
-  if(!w||!h)return;
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  const cx=w*MOUTH_X, cy=h*MOUTH_Y, mw=w*MOUTH_W;
-  const heights={closed:Math.max(1.2,h*MOUTH_H*.13),small:h*MOUTH_H*.30,round:h*MOUTH_H*.48,mid:h*MOUTH_H*.63,wide:h*MOUTH_H*.76,open:h*MOUTH_H};
-  const mh=heights[shape]||heights.small;
-  ctx.save();
-  ctx.translate(cx,cy);
-  ctx.beginPath();
-  ctx.ellipse(0,0,mw/2,mh/2,0,0,Math.PI*2);
-  ctx.fillStyle=shape==='closed'?'rgba(112,40,52,.30)':'rgba(65,5,18,.92)';
-  ctx.fill();
-  if(shape!=='closed'&&shape!=='small'){
-    ctx.beginPath();
-    ctx.ellipse(0,-mh*.20,mw*.34,Math.max(.6,mh*.13),0,Math.PI,Math.PI*2);
-    ctx.fillStyle='rgba(255,225,225,.9)';ctx.fill();
-    if(shape==='open'||shape==='round'){
-      ctx.beginPath();ctx.ellipse(0,mh*.22,mw*.20,mh*.12,0,0,Math.PI*2);
-      ctx.fillStyle='rgba(180,55,78,.9)';ctx.fill();
-    }
-  }
-  ctx.beginPath();ctx.ellipse(0,0,mw/2,mh/2,0,0,Math.PI*2);
-  ctx.strokeStyle='rgba(100,25,40,.8)';ctx.lineWidth=Math.max(1,w*.0018);ctx.stroke();
-  ctx.restore();
-}
+let utterance=null;
 function stopSpeaking(){
-  active=false;
-  window.speechSynthesis.cancel();
-  if(anim)cancelAnimationFrame(anim);anim=null;
-  drawMouth('closed');speakButton.disabled=false;
-}
-function animate(now){
-  if(!active)return;
-  const elapsed=now-startedAt;
-  const chars=Array.from(scriptText);
-  const progress=Math.min(1,elapsed/duration);
-  const idx=Math.min(chars.length-1,Math.floor(progress*chars.length));
-  drawMouth(shapeForChar(chars[idx]));
-  if(progress<1)anim=requestAnimationFrame(animate);
-  else {drawMouth('closed');anim=null;}
+  if('speechSynthesis' in window) window.speechSynthesis.cancel();
+  utterance=null;
+  speakButton.disabled=false;
 }
 speakButton.addEventListener('click',()=>{
   const text=message.value.trim();
   if(!text){status.textContent='पहले कुछ टेक्स्ट लिखें।';return;}
-  if(!('speechSynthesis'in window)){status.textContent='इस ब्राउज़र में टेक्स्ट-टू-स्पीच उपलब्ध नहीं है।';return;}
+  if(!('speechSynthesis' in window)){status.textContent='इस ब्राउज़र में टेक्स्ट-टू-स्पीच उपलब्ध नहीं है।';return;}
   stopSpeaking();
-  const utterance=new SpeechSynthesisUtterance(text);
-  utterance.lang='hi-IN';utterance.rate=.92;
-  utterance.onstart=()=>{
-    scriptText=text;duration=Math.max(1200,(Array.from(text).length/8)*1000/utterance.rate);
-    startedAt=performance.now();active=true;speakButton.disabled=true;
-    status.textContent='ज़ोया बोल रही है… (होंठों की आकृति अनुमानित है)';
-    anim=requestAnimationFrame(animate);
-  };
-  utterance.onend=()=>{
-    active=false;if(anim)cancelAnimationFrame(anim);anim=null;drawMouth('closed');
-    speakButton.disabled=false;status.textContent='बोलना पूरा हुआ।';
-  };
-  utterance.onerror=()=>{
-    active=false;if(anim)cancelAnimationFrame(anim);anim=null;drawMouth('closed');
-    speakButton.disabled=false;status.textContent='आवाज़ नहीं चल पाई। दोबारा प्रयास करें।';
-  };
+  utterance=new SpeechSynthesisUtterance(text);
+  utterance.lang='hi-IN';
+  utterance.rate=.92;
+  utterance.onstart=()=>{speakButton.disabled=true;status.textContent='ज़ोया बोल रही है…';};
+  utterance.onend=()=>{speakButton.disabled=false;status.textContent='बोलना पूरा हुआ।';utterance=null;};
+  utterance.onerror=()=>{speakButton.disabled=false;status.textContent='आवाज़ नहीं चल पाई। दोबारा प्रयास करें।';utterance=null;};
   window.speechSynthesis.speak(utterance);
 });
 document.getElementById('stop').addEventListener('click',()=>{
-  stopSpeaking();status.textContent='आवाज़ रोक दी गई।';
+  stopSpeaking();
+  status.textContent='आवाज़ रोक दी गई।';
 });
-window.addEventListener('resize',resizeCanvas);
-avatar.addEventListener('load',resizeCanvas);
-resizeCanvas();
+window.addEventListener('pagehide',stopSpeaking);
 </script>
 </body>
 </html>
