@@ -249,16 +249,14 @@ async function init(){
       if (node) poseBase[key] = node.quaternion.clone();
     }
 
-    // Rest pose: arms down and gently bent; torso/head retain their model rest pose.
+    // Rest pose: hands joined near the chest as seen in the second image.
     const restAngles = {
-      // CHEST-HANDS TEST: fold both arms forward and bend elbows inward.
-      // Keep camera, speech, Gemini backend, and humming logic unchanged.
-      leftUpper:  [0.10, -0.92,  1.02],
-      rightUpper: [0.10,  0.92, -1.02],
-      leftLower:  [-0.28, -1.02, -0.78],
-      rightLower: [-0.28,  1.02,  0.78],
-      leftHand:   [0.00,  0.00,  0.10],
-      rightHand:  [0.00,  0.00, -0.10]
+      leftUpper:  [0.00, -0.70, 1.10], 
+      rightUpper: [0.00,  0.70, -1.10],
+      leftLower:  [0.00, -1.40, 0.10], 
+      rightLower: [0.00,  1.40, -0.10],
+      leftHand:   [0.00, -0.15, 0.00], 
+      rightHand:  [0.00,  0.15, 0.00]
     };
 
     applyCrossedPose = (blend = 0, phase = 0) => {
