@@ -173,6 +173,7 @@ function animate(){
     gestureBlend += (targetBlend - gestureBlend) * Math.min(1, delta * 3.5);
     if (speaking) gesturePhase += delta * 5.0;
     try{applyCrossedPose(gestureBlend, gesturePhase);}catch(_){}
+    try{applyBodyPose(delta, behaviorMode, gesturePhase);}catch(_){}
     if(vrm.expressionManager){
       let amount=0;
       if(speaking){mouthPhase+=delta*14;amount=.12+Math.abs(Math.sin(mouthPhase))*.38;}
@@ -194,9 +195,9 @@ function frameModel(model){
   model.position.y-=bounds.min.y*scale;
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
-  // Slightly zoomed-out portrait framing: keep the head and torso comfortably inside the stage on mobile.
-  camera.position.set(0,1.42,2.65);
-  camera.lookAt(0,1.25,0);
+  // Portrait framing: show Zoya from head to waist rather than full body.
+  camera.position.set(0,1.38,1.72);
+  camera.lookAt(0,1.38,0);
   camera.updateProjectionMatrix();
 }
 async function init(){
@@ -249,20 +250,15 @@ async function init(){
       if (node) poseBase[key] = node.quaternion.clone();
     }
 
-    // Rest pose: arms down and gently bent; torso/head retain their model rest pose.
+    // Chest-level resting pose: rotate upper arms down/inward and flex elbows.
+    // These are local offsets from this VRM model's authored rest pose.
     const restAngles = {
-      // VRM sample_a.vrm uses outward-pointing arm chains:
-      // left arm bones extend along local -X, right arm bones along local +X.
-      // Turn upper arms forward and down; bend forearms inward toward the chest.
-      // The previous test placed the forearms behind the torso.
-      // Reverse the forward-depth yaw based on the observed live render,
-      // and reduce the elbow yaw so the hands remain visible in front.
-      leftUpper:  [-0.10, -0.58,  0.52],
-      rightUpper: [-0.10,  0.58, -0.52],
-      leftLower:  [0.00, -0.95, -0.38],
-      rightLower: [0.00,  0.95,  0.38],
-      leftHand:   [0.00,  0.00,  0.06],
-      rightHand:  [0.00,  0.00, -0.06]
+      leftUpper:  [0.00, -0.18,  1.22],
+      rightUpper: [0.00,  0.18, -1.22],
+      leftLower:  [-0.18, -0.20, -1.12],
+      rightLower: [-0.18,  0.20,  1.12],
+      leftHand:   [0.00,  0.00,  0.08],
+      rightHand:  [0.00,  0.00, -0.08]
     };
 
     applyCrossedPose = (blend = 0, phase = 0) => {
