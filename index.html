@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Zoya AI - 3D Avatar</title>
     <style>
-        /* बेसिक सेटिंग */
         body {
             margin: 0;
             padding: 0;
@@ -22,10 +21,7 @@
             width: 100vw;
             height: 100vh;
             z-index: 1;
-            
-            /* 🔥 यहाँ ज़ूम और नीचे शिफ्ट करने का जादू है 🔥 */
-            transform: scale(1.45) translateY(12%); 
-            transform-origin: top center; 
+            /* ⚠️ यहाँ से ज़ूम (scale) हटा दिया गया है ताकि अवतार पूरा दिखे */
         }
 
         /* नीचे का UI (चैट और बटन) */
@@ -72,22 +68,10 @@
             transition: opacity 0.2s;
         }
 
-        .btn:active {
-            opacity: 0.7;
-        }
-
-        .btn-primary {
-            background-color: #7b61ff;
-            color: white;
-        }
-
-        .btn-secondary {
-            background-color: #2a2a35;
-            color: white;
-            border: 1px solid #3a3a4a;
-        }
+        .btn:active { opacity: 0.7; }
+        .btn-primary { background-color: #7b61ff; color: white; }
+        .btn-secondary { background-color: #2a2a35; color: white; border: 1px solid #3a3a4a; }
         
-        /* लोडिंग इंडिकेटर */
         #loading {
             position: absolute;
             top: 50%;
@@ -104,7 +88,6 @@
     <div id="loading">अवतार लोड हो रहा है...</div>
     <div id="canvas-container"></div>
 
-    <!-- UI सेक्शन -->
     <div class="ui-container">
         <div class="chat-box">
             नमस्ते ज़ोया, आज की तारीख क्या है?
@@ -119,7 +102,6 @@
         </div>
     </div>
 
-    <!-- Three.js और VRM लोडर इम्पोर्ट -->
     <script type="importmap">
         {
             "imports": {
@@ -135,22 +117,23 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 
-        // 1. सीन (Scene) सेटअप
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
         
-        // कैमरा
-        const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 1.2, 3); // कैमरा की पोज़िशन
+        // 🔥 कैमरा सेटिंग्स (नाभि तक दिखाने के लिए) 🔥
+        const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+        // position.set(X, Y, Z) -> Z को बढ़ाया ताकि ज़ूम आउट हो (दूर से दिखे)
+        // Y को कम किया (1.0) ताकि कैमरा चेहरे के बजाय सीने/पेट के लेवल पर फोकस करे
+        camera.position.set(0, 1.0, 3.5); 
+        camera.lookAt(0, 0.9, 0); // कैमरा थोड़ा नीचे देखेगा
 
-        // रेंडरर
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         container.appendChild(renderer.domElement);
 
-        // 2. लाइटिंग (अवतार को उजला दिखाने के लिए)
+        // लाइटिंग
         const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
         scene.add(ambientLight);
 
@@ -158,23 +141,20 @@
         directionalLight.position.set(1, 2, 3);
         scene.add(directionalLight);
 
-        // 3. मॉडल लोड करना
+        // मॉडल लोडर
         const loader = new GLTFLoader();
         loader.register((parser) => new VRMLoaderPlugin(parser));
 
-        // ⚠️ यहाँ अपनी असली 3D फाइल का नाम डालें (जैसे: 'zoya.vrm' या 'avatar.glb')
-        // अभी के लिए मैंने इंटरनेट से एक टेस्ट मॉडल का लिंक डाला है ताकि स्क्रीन काली ना दिखे।
+        // ⚠️ यहाँ अपनी असली फाइल का नाम डालें। अभी टेस्टिंग के लिए यह लिंक है।
         const modelURL = 'https://pixiv.github.io/three-vrm/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm'; 
 
         loader.load(
             modelURL,
             (gltf) => {
-                document.getElementById('loading').style.display = 'none'; // लोडिंग हटाएं
-                
+                document.getElementById('loading').style.display = 'none';
                 const model = gltf.scene;
                 scene.add(model);
 
-                // VRM मॉडल सेटिंग्स
                 if (gltf.userData.vrm) {
                     const vrm = gltf.userData.vrm;
                     VRMUtils.removeUnnecessaryVertices(gltf.scene);
@@ -191,19 +171,13 @@
             }
         );
 
-        // 4. एनिमेशन लूप (स्क्रीन को रेंडर करने के लिए)
         const clock = new THREE.Clock();
         function animate() {
             requestAnimationFrame(animate);
-            const delta = clock.getDelta();
-            
-            // यहाँ आप आगे चलकर अवतार के हिलने-डुलने (Idle animation) का कोड जोड़ सकते हैं
-
             renderer.render(scene, camera);
         }
         animate();
 
-        // 5. स्क्रीन साइज़ के हिसाब से एडजस्टमेंट
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
