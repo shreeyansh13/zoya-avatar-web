@@ -205,13 +205,12 @@ async function init(){
       if (node) poseBase[key] = node.quaternion.clone();
     }
 
-    // UPDATED: Fixed X-axis to POSITIVE (+0.4) to bring hands to the FRONT of the chest.
-    // Y-axis brings them inward, Z-axis brings them down from T-pose.
+    // EXACT VALUES FROM THE INFOGRAPHIC (Step 4: Hands touching in front of chest)
     const restAngles = {
-      leftUpper:  [ 0.4,  0.3,  1.1],  // POSITIVE X brings arm FORWARD
-      rightUpper: [ 0.4, -0.3, -1.1],  // POSITIVE X brings arm FORWARD
-      leftLower:  [ 0.0,  1.0,  0.0],  // Elbow bends inward to touch
-      rightLower: [ 0.0, -1.0,  0.0],  // Elbow bends inward to touch
+      leftUpper:  [-0.4,  0.3,  1.1],
+      rightUpper: [-0.4, -0.3, -1.1],
+      leftLower:  [ 0.0,  1.0,  0.0],
+      rightLower: [ 0.0, -1.0,  0.0],
       leftHand:   [ 0.0,  0.2,  0.0],
       rightHand:  [ 0.0, -0.2,  0.0]
     };
@@ -220,7 +219,7 @@ async function init(){
       const a = Math.sin(phase);
       const b = Math.sin(phase * 0.72 + 1.0);
       
-      // Exact subtle gesture movements from the provided infographic.
+      // EXACT GESTURE VALUES FROM THE INFOGRAPHIC (Expressive Gesture while speaking)
       const gestureAngles = {
         leftUpper:  [0.02 * a * blend, 0.02 * b * blend, 0.0],
         rightUpper: [0.02 * a * blend, -0.02 * b * blend, 0.0],
