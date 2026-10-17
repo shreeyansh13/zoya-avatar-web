@@ -205,21 +205,22 @@ async function init(){
       if (node) poseBase[key] = node.quaternion.clone();
     }
 
-    // EXACT VALUES FROM THE INFOGRAPHIC (Step 4: Hands touching in front of chest)
+    // UPDATED: Z-axis brings arm down. Y-axis brings it FORWARD. 
+    // Lower arm Y-axis bends elbow heavily INWARD to touch chest.
     const restAngles = {
-      leftUpper:  [-0.4,  0.3,  1.1],
-      rightUpper: [-0.4, -0.3, -1.1],
-      leftLower:  [ 0.0,  1.0,  0.0],
-      rightLower: [ 0.0, -1.0,  0.0],
-      leftHand:   [ 0.0,  0.2,  0.0],
-      rightHand:  [ 0.0, -0.2,  0.0]
+      leftUpper:  [0.0,  0.5,  1.0],  // Z brings down, Y brings forward
+      rightUpper: [0.0, -0.5, -1.0],  // Z brings down, Y brings forward
+      leftLower:  [0.0,  1.3,  0.0],  // Heavy bend inward to touch chest
+      rightLower: [0.0, -1.3,  0.0],  // Heavy bend inward to touch chest
+      leftHand:   [0.0,  0.1,  0.0],
+      rightHand:  [0.0, -0.1,  0.0]
     };
 
     applyCrossedPose = (blend = 0, phase = 0) => {
       const a = Math.sin(phase);
       const b = Math.sin(phase * 0.72 + 1.0);
       
-      // EXACT GESTURE VALUES FROM THE INFOGRAPHIC (Expressive Gesture while speaking)
+      // Exact subtle gesture movements from the provided infographic.
       const gestureAngles = {
         leftUpper:  [0.02 * a * blend, 0.02 * b * blend, 0.0],
         rightUpper: [0.02 * a * blend, -0.02 * b * blend, 0.0],
