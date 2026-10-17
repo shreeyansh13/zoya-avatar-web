@@ -254,10 +254,13 @@ async function init(){
       // VRM sample_a.vrm uses outward-pointing arm chains:
       // left arm bones extend along local -X, right arm bones along local +X.
       // Turn upper arms forward and down; bend forearms inward toward the chest.
-      leftUpper:  [-0.10,  0.78,  0.58],
-      rightUpper: [-0.10, -0.78, -0.58],
-      leftLower:  [0.00,  1.75, -0.55],
-      rightLower: [0.00, -1.75,  0.55],
+      // The previous test placed the forearms behind the torso.
+      // Reverse the forward-depth yaw based on the observed live render,
+      // and reduce the elbow yaw so the hands remain visible in front.
+      leftUpper:  [-0.10, -0.58,  0.52],
+      rightUpper: [-0.10,  0.58, -0.52],
+      leftLower:  [0.00, -0.95, -0.38],
+      rightLower: [0.00,  0.95,  0.38],
       leftHand:   [0.00,  0.00,  0.06],
       rightHand:  [0.00,  0.00, -0.06]
     };
