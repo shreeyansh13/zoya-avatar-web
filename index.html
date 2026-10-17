@@ -173,7 +173,6 @@ function animate(){
     gestureBlend += (targetBlend - gestureBlend) * Math.min(1, delta * 3.5);
     if (speaking) gesturePhase += delta * 5.0;
     try{applyCrossedPose(gestureBlend, gesturePhase);}catch(_){}
-    try{applyBodyPose(delta, behaviorMode, gesturePhase);}catch(_){}
     if(vrm.expressionManager){
       let amount=0;
       if(speaking){mouthPhase+=delta*14;amount=.12+Math.abs(Math.sin(mouthPhase))*.38;}
@@ -196,8 +195,8 @@ function frameModel(model){
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
   // Portrait framing: show Zoya from head to waist rather than full body.
-  camera.position.set(0,1.38,1.72);
-  camera.lookAt(0,1.38,0);
+  camera.position.set(0,1.32,2.0);
+  camera.lookAt(0,1.20,0);
   camera.updateProjectionMatrix();
 }
 async function init(){
@@ -250,15 +249,18 @@ async function init(){
       if (node) poseBase[key] = node.quaternion.clone();
     }
 
-    // Chest-level resting pose: rotate upper arms down/inward and flex elbows.
-    // These are local offsets from this VRM model's authored rest pose.
+    // Rest pose: arms down and gently bent; torso/head retain their model rest pose.
     const restAngles = {
-      leftUpper:  [0.00, -0.18,  1.22],
-      rightUpper: [0.00,  0.18, -1.22],
-      leftLower:  [-0.18, -0.20, -1.12],
-      rightLower: [-0.18,  0.20,  1.12],
-      leftHand:   [0.00,  0.00,  0.08],
-      rightHand:  [0.00,  0.00, -0.08]
+      // Calibrated from the uploaded sample_a.vrm humanoid hierarchy:
+      // upper-arm chains extend along local -X (left) and +X (right).
+      // Rotate shoulders forward and lift upper arms; fold elbows inward.
+      // Keep the pose in front of the torso, not behind the model.
+      leftUpper:  [0.00,  0.48, -0.78],
+      rightUpper: [0.00, -0.48,  0.78],
+      leftLower:  [0.00, -0.28, -1.72],
+      rightLower: [0.00,  0.28,  1.72],
+      leftHand:   [0.00,  0.00,  0.04],
+      rightHand:  [0.00,  0.00, -0.04]
     };
 
     applyCrossedPose = (blend = 0, phase = 0) => {
@@ -268,12 +270,12 @@ async function init(){
       const speakingBlend = active ? Math.min(1, Math.max(blend, 0.65)) : blend;
       const gestureAngles = {
         // Keep the joined-hands base pose; add only tiny, symmetric speech gestures.
-        leftUpper:  [0.025*a*speakingBlend, 0.025*b*speakingBlend, 0.025*a*speakingBlend],
-        rightUpper: [0.025*b*speakingBlend,-0.025*a*speakingBlend,-0.025*b*speakingBlend],
-        leftLower:  [0.02*Math.max(0,a)*speakingBlend, 0.035*b*speakingBlend, -0.025*b*speakingBlend],
-        rightLower: [0.02*Math.max(0,b)*speakingBlend,-0.035*a*speakingBlend, 0.025*a*speakingBlend],
-        leftHand:   [0, 0.015*a*speakingBlend, 0],
-        rightHand:  [0,-0.015*b*speakingBlend, 0]
+        leftUpper:  [0.015*a*speakingBlend, 0.012*b*speakingBlend, 0.018*a*speakingBlend],
+        rightUpper: [0.015*b*speakingBlend,-0.012*a*speakingBlend,-0.018*b*speakingBlend],
+        leftLower:  [0.012*Math.max(0,a)*speakingBlend, 0.018*b*speakingBlend, -0.018*b*speakingBlend],
+        rightLower: [0.012*Math.max(0,b)*speakingBlend,-0.018*a*speakingBlend, 0.018*a*speakingBlend],
+        leftHand:   [0, 0.008*a*speakingBlend, 0],
+        rightHand:  [0,-0.008*b*speakingBlend, 0]
       };
       for (const key of Object.keys(poseBones)) {
         const node=poseBones[key], base=poseBase[key];
