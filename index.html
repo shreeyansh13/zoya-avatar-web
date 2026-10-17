@@ -9,11 +9,10 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
-            background-color: #181824; /* डार्क बैकग्राउंड */
+            background-color: #181824;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
-        /* 3D अवतार का कंटेनर */
         #canvas-container {
             position: absolute;
             top: 0;
@@ -21,10 +20,8 @@
             width: 100vw;
             height: 100vh;
             z-index: 1;
-            /* ⚠️ यहाँ से ज़ूम (scale) हटा दिया गया है ताकि अवतार पूरा दिखे */
         }
 
-        /* नीचे का UI (चैट और बटन) */
         .ui-container {
             position: absolute;
             bottom: 15px;
@@ -120,12 +117,12 @@
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
         
-        // 🔥 कैमरा सेटिंग्स (नाभि तक दिखाने के लिए) 🔥
-        const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
-        // position.set(X, Y, Z) -> Z को बढ़ाया ताकि ज़ूम आउट हो (दूर से दिखे)
-        // Y को कम किया (1.0) ताकि कैमरा चेहरे के बजाय सीने/पेट के लेवल पर फोकस करे
-        camera.position.set(0, 1.0, 3.5); 
-        camera.lookAt(0, 0.9, 0); // कैमरा थोड़ा नीचे देखेगा
+        // 🔥 1. कैमरा सेटिंग्स (Passport Size के लिए) 🔥
+        const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
+        
+        // Z की वैल्यू कम करने से ज़ूम इन होता है। Y की वैल्यू से कैमरा ऊपर/नीचे होता है।
+        camera.position.set(0, 1.35, 1.6); // कैमरा पास (1.6) और चेहरे के लेवल पर (1.35)
+        camera.lookAt(0, 1.2, 0); // कैमरा सीधे सीने/चेहरे के बीच देखेगा
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -136,7 +133,6 @@
         // लाइटिंग
         const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
         scene.add(ambientLight);
-
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
         directionalLight.position.set(1, 2, 3);
         scene.add(directionalLight);
@@ -145,8 +141,10 @@
         const loader = new GLTFLoader();
         loader.register((parser) => new VRMLoaderPlugin(parser));
 
-        // ⚠️ यहाँ अपनी असली फाइल का नाम डालें। अभी टेस्टिंग के लिए यह लिंक है।
+        // ⚠️ यहाँ अपना असली मॉडल डालें (जैसे 'zoya.vrm')
         const modelURL = 'https://pixiv.github.io/three-vrm/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm'; 
+
+        let currentVrm = null;
 
         loader.load(
             modelURL,
@@ -157,9 +155,30 @@
 
                 if (gltf.userData.vrm) {
                     const vrm = gltf.userData.vrm;
+                    currentVrm = vrm;
+                    
                     VRMUtils.removeUnnecessaryVertices(gltf.scene);
                     VRMUtils.combineSkeletons(gltf.scene);
                     VRMUtils.rotateVRM0(vrm);
+
+                    // 🔥 2. हाथों को छाती पर लाने का कोड (Bone Rotation) 🔥
+                    // हम मॉडल की हड्डियों (Bones) को घुमा रहे हैं
+                    const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                    const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+                    const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+                    const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+
+                    if (leftUpperArm && rightUpperArm) {
+                        // कंधों को नीचे लाना
+                        leftUpperArm.rotation.z = 1.3; 
+                        rightUpperArm.rotation.z = -1.3; 
+                        
+                        // कोहनी को मोड़ना ताकि हाथ छाती पर आएं
+                        if (leftLowerArm && rightLowerArm) {
+                            leftLowerArm.rotation.y = -1.2; 
+                            rightLowerArm.rotation.y = 1.2;
+                        }
+                    }
                 }
             },
             (progress) => {
@@ -174,6 +193,13 @@
         const clock = new THREE.Clock();
         function animate() {
             requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            // VRM को अपडेट करना ज़रूरी है ताकि हाथों की नई पोज़िशन दिखे
+            if (currentVrm) {
+                currentVrm.update(delta);
+            }
+
             renderer.render(scene, camera);
         }
         animate();
