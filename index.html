@@ -1,142 +1,338 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="hi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Zoya AI - 3D Avatar</title>
-    <style>
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #181824; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
-        .ui-container { position: absolute; bottom: 15px; left: 0; width: 100%; padding: 0 15px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; z-index: 10; }
-        .chat-box { background: #232330; border: 1px solid #3a3a4a; color: #ffffff; padding: 15px; border-radius: 12px; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        .button-row { display: flex; gap: 10px; }
-        .btn { flex: 1; padding: 14px 10px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: opacity 0.2s; }
-        .btn:active { opacity: 0.7; }
-        .btn-primary { background-color: #7b61ff; color: white; }
-        .btn-secondary { background-color: #2a2a35; color: white; border: 1px solid #3a3a4a; }
-        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 18px; z-index: 5; }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101116">
+<title>Zoya AI — 3D Avatar</title>
+<style>
+*{box-sizing:border-box}:root{color-scheme:dark}
+body{margin:0;background:#101116;color:#fff;font-family:system-ui,sans-serif;min-height:100dvh}
+header{padding:14px 16px;font-size:20px;font-weight:750;border-bottom:1px solid #30313a}
+main{max-width:680px;margin:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
+#stage{height:clamp(370px,62dvh,620px);position:relative;overflow:hidden;border:1px solid #30313a;border-radius:18px;background:radial-gradient(ellipse at 50% 35%,#292a3b,#12131a 70%)}
+#stage canvas{display:block;width:100%;height:100%}
+#status{min-height:22px;color:#d0d0dc;font-size:14px;overflow-wrap:anywhere}
+textarea{width:100%;min-height:92px;resize:vertical;border:1px solid #393b49;border-radius:12px;padding:12px;color:white;background:#1b1c25;font:inherit}
+.buttons{display:flex;gap:10px}button{flex:1;padding:13px 10px;border:0;border-radius:12px;font:inherit;font-weight:700;cursor:pointer}
+#send{background:#7567ff;color:#fff}#stop{background:#30313a;color:#fff}button:disabled{opacity:.6}
+.note{font-size:12px;line-height:1.5;color:#a7a8b3}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+    "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.min.js"
+  }
+}
+</script>
 </head>
 <body>
-    <div id="loading">अवतार लोड हो रहा है...</div>
-    <div id="canvas-container"></div>
+<header>ZOYA AI · 3D AVATAR</header>
+<main>
+  <section id="stage" aria-label="Zoya 3D avatar"></section>
+  <textarea id="message" placeholder="अपना संदेश हिंदी में लिखें…">नमस्ते ज़ोया, आज की तारीख क्या है?</textarea>
+  <div class="buttons"><button id="send">💬 पूछें और सुनें</button><button id="stop">⏹ रोकें</button></div>
+  <div class="buttons"><button id="humOriginal">🎵 मौलिक धुन</button><button id="humRequested">🎶 गुनगुनाएँ</button></div>
+  <div id="status" role="status">3D मॉड्यूल शुरू हो रहे हैं…</div>
+  <div class="note">यह 3D VRM परीक्षण संस्करण है। Gemini /chat backend और Android Call Flow नहीं बदले गए। बातचीत में browser speech synthesis और गुनगुनाने में locally generated melody tones उपयोग होते हैं; यह अभी मानव-जैसी humming voice या copyrighted song recording नहीं है।</div>
+</main>
+<script type="module">
+const statusEl=document.getElementById('status');
+const stageEl=document.getElementById('stage');
+const messageEl=document.getElementById('message');
+const sendBtn=document.getElementById('send');
+let THREE, GLTFLoader, VRMLoaderPlugin, VRMUtils;
+let vrm=null,renderer=null,scene=null,camera=null,clock=null;
+let utterance=null,speaking=false,mouthPhase=0,rafId=0;
+let gesturePhase=0, gestureBlend=0, applyCrossedPose=()=>{};
+let behaviorMode='idle', audioCtx=null, melodyTimer=null, melodyNodes=[];
+let applyBodyPose=()=>{};
 
-    <div class="ui-container">
-        <div class="chat-box">नमस्ते ज़ोया, आज की तारीख क्या है?</div>
-        <div class="button-row">
-            <button class="btn btn-primary">💬 पूछें और सुनें</button>
-            <button class="btn btn-secondary">⏹️ रोकें</button>
-        </div>
-        <div class="button-row">
-            <button class="btn btn-secondary">🎵 मौलिक धुन</button>
-            <button class="btn btn-secondary">🎶 गुनगुनाएँ</button>
-        </div>
-    </div>
+function setStatus(message){statusEl.textContent=message;}
+function stopVoice(){
+  if('speechSynthesis' in window) window.speechSynthesis.cancel();
+  speaking=false; utterance=null; sendBtn.disabled=false;
+  if(melodyTimer){clearTimeout(melodyTimer);melodyTimer=null;}
+  for(const node of melodyNodes){try{node.stop?.();}catch(_){} try{node.disconnect?.();}catch(_){}}
+  melodyNodes=[];
+  behaviorMode='idle';
+  if(vrm?.expressionManager) {
+    for(const name of ['aa','ih','ou']) {
+      try{vrm.expressionManager.setValue(name,0)}catch(_){}
+    }
+  }
+}
+function speak(text){
+  if(!('speechSynthesis' in window)){setStatus('इस ब्राउज़र में आवाज़ उपलब्ध नहीं है। Chrome में खोलकर जाँचें।');sendBtn.disabled=false;return;}
+  stopVoice();
+  utterance=new SpeechSynthesisUtterance(text);
+  utterance.lang='hi-IN'; utterance.rate=.94; utterance.pitch=1.02;
+  utterance.onstart=()=>{speaking=true;behaviorMode='talk';setStatus('ज़ोया बोल रही है…');};
+  utterance.onend=()=>{speaking=false;behaviorMode='idle';setStatus('जवाब पूरा हुआ।');};
+  utterance.onerror=(event)=>{speaking=false;behaviorMode='idle';sendBtn.disabled=false;setStatus('आवाज़ की त्रुटि: '+(event.error||'speech error'));};
+  window.speechSynthesis.speak(utterance);
+}
+async function askBackend(userText){
+  setStatus('Gemini से जवाब माँगा जा रहा है… पहली request में backend जागने के कारण थोड़ा समय लग सकता है।');
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  let response;
+  try {
+    response = await fetch('https://zoya-backend-ctr8.onrender.com/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:userText}),
+      signal: controller.signal
+    });
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error('25 सेकंड में जवाब नहीं आया। Backend cold start या Gemini में देरी हो सकती है।');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+  if(!response.ok) throw new Error('Backend HTTP '+response.status);
+  const data=await response.json();
+  const answer=typeof data==='string'?data:
+    (data.reply??data.response??data.answer??data.text??data.message??data.output);
+  if(typeof answer!=='string'||!answer.trim()){
+    throw new Error('Backend से जवाब मिला, लेकिन response format पहचाना नहीं गया।');
+  }
+  return answer.trim();
+}
 
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-                "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@3.0.0/lib/three-vrm.module.js"
-            }
-        }
-    </script>
+function playMelody(mode='original'){
+  stopVoice();
+  const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+  if(!AudioContextClass){setStatus('इस ब्राउज़र में audio generation उपलब्ध नहीं है।');return;}
+  audioCtx=audioCtx||new AudioContextClass();
+  audioCtx.resume().catch(()=>{});
+  behaviorMode='hum'; speaking=true;
+  const original=[392,440,523.25,440,392,329.63,349.23,392];
+  const requested=[523.25,587.33,659.25,587.33,523.25,440,392,440];
+  const notes=mode==='original'?original:requested;
+  let index=0;
+  setStatus(mode==='original'?'ज़ोया अपनी मौलिक धुन गुनगुना रही है…':'ज़ोया एक छोटी धुन गुनगुना रही है…');
+  const playNote=()=>{
+    if(behaviorMode!=='hum')return;
+    const now=audioCtx.currentTime;
+    const osc=audioCtx.createOscillator();
+    const overtone=audioCtx.createOscillator();
+    const gain=audioCtx.createGain();
+    const mix=audioCtx.createGain();
+    osc.type='sine'; osc.frequency.value=notes[index%notes.length];
+    overtone.type='triangle'; overtone.frequency.value=notes[index%notes.length]*2;
+    gain.gain.setValueAtTime(0.0001,now);
+    gain.gain.exponentialRampToValueAtTime(0.055,now+0.04);
+    gain.gain.setTargetAtTime(0.0001,now+0.22,0.09);
+    mix.gain.value=0.22;
+    osc.connect(gain); overtone.connect(mix); mix.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(now); overtone.start(now);
+    osc.stop(now+0.48); overtone.stop(now+0.48);
+    melodyNodes.push(osc,overtone,gain,mix);
+    index++;
+    melodyTimer=setTimeout(playNote,360);
+  };
+  playNote();
+}
+document.getElementById('humOriginal').addEventListener('click',()=>playMelody('original'));
+document.getElementById('humRequested').addEventListener('click',()=>playMelody('requested'));
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+sendBtn.addEventListener('click',async()=>{
+  const question=messageEl.value.trim();
+  if(!question){setStatus('पहले संदेश लिखें।');return;}
+  stopVoice(); sendBtn.disabled=true;
+  try{
+    const answer=await askBackend(question);
+    messageEl.value=answer;
+    speak(answer);
+  }catch(error){
+    const msg=error?.message||'अज्ञात नेटवर्क त्रुटि';
+    if (error instanceof TypeError || /fetch|network|failed to fetch/i.test(msg)) {
+      setStatus('AI कनेक्शन ब्लॉक हुआ: यह CORS/preflight या नेटवर्क समस्या लगती है। Backend health running होने पर भी backend को इस वेबसाइट के origin की अनुमति देनी होगी; frontend अकेले CORS bypass नहीं कर सकता।');
+    } else {
+      setStatus('Gemini कनेक्शन असफल: '+msg+'. Backend में कोई बदलाव नहीं किया गया।');
+    }
+  }finally{sendBtn.disabled=false;}
+});
+document.getElementById('stop').addEventListener('click',()=>{
+  stopVoice();setStatus('आवाज़ रोक दी गई; शरीर आराम की स्थिति में लौट रहा है।');
+});
+window.addEventListener('pagehide',stopVoice);
 
-        const container = document.getElementById('canvas-container');
-        const scene = new THREE.Scene();
-        
-        // 🔥 कैमरा सेटिंग्स (अब Passport Size के लिए एकदम सही) 🔥
-        const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
-        
-        // Z (2.2) = दूरी (कम करने पर पास आएगा), Y (1.35) = ऊंचाई
-        camera.position.set(0, 1.35, 2.2); 
-        camera.lookAt(0, 1.25, 0); // कैमरा सीने/चेहरे के बीच देखेगा
+function animate(){
+  rafId=requestAnimationFrame(animate);
+  if(!renderer||!scene||!camera)return;
+  const delta=clock.getDelta();
+  if(vrm){
+    vrm.update(delta);
+    const targetBlend = speaking ? 1 : 0;
+    gestureBlend += (targetBlend - gestureBlend) * Math.min(1, delta * 3.5);
+    if (speaking) gesturePhase += delta * 5.0;
+    try{applyCrossedPose(gestureBlend, gesturePhase);}catch(_){}
+    if(vrm.expressionManager){
+      let amount=0;
+      if(speaking){mouthPhase+=delta*14;amount=.12+Math.abs(Math.sin(mouthPhase))*.38;}
+      try{vrm.expressionManager.setValue('aa',amount);}catch(_){}
+    }
+  }
+  renderer.render(scene,camera);
+}
+function frameModel(model){
+  model.updateMatrixWorld(true);
+  const bounds=new THREE.Box3().setFromObject(model);
+  const size=bounds.getSize(new THREE.Vector3());
+  const center=bounds.getCenter(new THREE.Vector3());
+  if(!Number.isFinite(size.y)||size.y<=0) throw new Error('मॉडल की ऊँचाई पढ़ नहीं पाई।');
+  // Scale to a consistent humanoid height and center its body around the camera target.
+  const scale=1.8/size.y;
+  model.scale.setScalar(scale);
+  model.position.x-=center.x*scale;
+  model.position.y-=bounds.min.y*scale;
+  model.position.z-=center.z*scale;
+  model.updateMatrixWorld(true);
+  // Slightly zoomed-out portrait framing: keep the head and torso comfortably inside the stage on mobile.
+  camera.position.set(0,1.42,2.65);
+  camera.lookAt(0,1.25,0);
+  camera.updateProjectionMatrix();
+}
+async function init(){
+  let stageTimeout;
+  try{
+    setStatus('3D libraries डाउनलोड हो रही हैं…');
+    // Import errors are caught here, instead of leaving the page stuck at the initial status.
+    const imports=await Promise.all([
+      import('three'),
+      import('three/addons/loaders/GLTFLoader.js'),
+      import('@pixiv/three-vrm')
+    ]);
+    [THREE,{GLTFLoader},{VRMLoaderPlugin,VRMUtils}]=imports;
+    setStatus('3D renderer शुरू हो रहा है…');
+    scene=new THREE.Scene();
+    scene.background=new THREE.Color(0x171823);
+    camera=new THREE.PerspectiveCamera(30,Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight),.1,100);
+    renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));
+    renderer.setSize(stageEl.clientWidth,stageEl.clientHeight);
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    stageEl.appendChild(renderer.domElement);
+    scene.add(new THREE.HemisphereLight(0xffffff,0x62627b,2));
+    const key=new THREE.DirectionalLight(0xffffff,2);key.position.set(1,3,4);scene.add(key);
+    const fill=new THREE.DirectionalLight(0xa9b8ff,.7);fill.position.set(-3,2,1);scene.add(fill);
+    clock=new THREE.Clock();
+    setStatus('models/sample_a.vrm डाउनलोड हो रहा है…');
+    const loader=new GLTFLoader();
+    loader.register(parser=>new VRMLoaderPlugin(parser));
+    const gltf=await loader.loadAsync('./models/sample_a.vrm');
+    vrm=gltf.userData.vrm;
+    if(!vrm)throw new Error('फ़ाइल से VRM डेटा नहीं मिला।');
+    // Compatibility guard in case the utility is absent in a loaded package build.
+    if(VRMUtils && typeof VRMUtils.rotateVRM0==='function') VRMUtils.rotateVRM0(vrm);
+    scene.add(vrm.scene);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        container.appendChild(renderer.domElement);
+    // Natural bent-arm pose with expressive, speech-synced gestures.
+    // Use normalized VRM bones and preserve their authored rest rotations.
+    const bone = name => vrm.humanoid?.getNormalizedBoneNode(name);
+    const poseBones = {
+      hips: bone('hips'), spine: bone('spine'), chest: bone('chest'),
+      neck: bone('neck'), head: bone('head'),
+      leftShoulder: bone('leftShoulder'), rightShoulder: bone('rightShoulder'),
+      leftUpper: bone('leftUpperArm'), rightUpper: bone('rightUpperArm'),
+      leftLower: bone('leftLowerArm'), rightLower: bone('rightLowerArm'),
+      leftHand: bone('leftHand'), rightHand: bone('rightHand')
+    };
+    const poseBase = {};
+    for (const [key, node] of Object.entries(poseBones)) {
+      if (node) poseBase[key] = node.quaternion.clone();
+    }
 
-        // लाइटिंग
-        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        dirLight.position.set(1, 2, 3);
-        scene.add(dirLight);
+    // Rest pose: arms down and gently bent; torso/head retain their model rest pose.
+    const restAngles = {
+      // VRM sample_a.vrm uses outward-pointing arm chains:
+      // left arm bones extend along local -X, right arm bones along local +X.
+      // Turn upper arms forward and down; bend forearms inward toward the chest.
+      // The previous test placed the forearms behind the torso.
+      // Reverse the forward-depth yaw based on the observed live render,
+      // and reduce the elbow yaw so the hands remain visible in front.
+      leftUpper:  [-0.10, -0.58,  0.52],
+      rightUpper: [-0.10,  0.58, -0.52],
+      leftLower:  [0.00, -0.95, -0.38],
+      rightLower: [0.00,  0.95,  0.38],
+      leftHand:   [0.00,  0.00,  0.06],
+      rightHand:  [0.00,  0.00, -0.06]
+    };
 
-        const loader = new GLTFLoader();
-        loader.register((parser) => new VRMLoaderPlugin(parser));
+    applyCrossedPose = (blend = 0, phase = 0) => {
+      const a = Math.sin(phase);
+      const b = Math.sin(phase * 0.72 + 1.0);
+      const active = behaviorMode === 'talk' || behaviorMode === 'hum';
+      const speakingBlend = active ? Math.min(1, Math.max(blend, 0.65)) : blend;
+      const gestureAngles = {
+        // Keep the joined-hands base pose; add only tiny, symmetric speech gestures.
+        leftUpper:  [0.025*a*speakingBlend, 0.025*b*speakingBlend, 0.025*a*speakingBlend],
+        rightUpper: [0.025*b*speakingBlend,-0.025*a*speakingBlend,-0.025*b*speakingBlend],
+        leftLower:  [0.02*Math.max(0,a)*speakingBlend, 0.035*b*speakingBlend, -0.025*b*speakingBlend],
+        rightLower: [0.02*Math.max(0,b)*speakingBlend,-0.035*a*speakingBlend, 0.025*a*speakingBlend],
+        leftHand:   [0, 0.015*a*speakingBlend, 0],
+        rightHand:  [0,-0.015*b*speakingBlend, 0]
+      };
+      for (const key of Object.keys(poseBones)) {
+        const node=poseBones[key], base=poseBase[key];
+        if(!node||!base)continue;
+        const rest=restAngles[key]||[0,0,0];
+        const gesture=gestureAngles[key]||[0,0,0];
+        const offset=new THREE.Quaternion().setFromEuler(new THREE.Euler(
+          rest[0]+gesture[0],rest[1]+gesture[1],rest[2]+gesture[2],'XYZ'
+        ));
+        node.quaternion.copy(base).multiply(offset);
+      }
+    };
 
-        // ⚠️ यहाँ अपना असली मॉडल डालें (जैसे 'zoya.vrm')
-        const modelURL = 'https://pixiv.github.io/three-vrm/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm'; 
+    // Continuous whole-upper-body animation. Small idle sway always runs;
+    // speaking/listening/humming adds a little more head, torso and shoulder motion.
+    let bodyClock=0;
+    applyBodyPose = (delta, mode, phase) => {
+      bodyClock += delta;
+      const idleX=Math.sin(bodyClock*1.15)*0.018;
+      const idleZ=Math.sin(bodyClock*0.82)*0.012;
+      const active=(mode==='talk'||mode==='hum');
+      const energy=mode==='hum'?1.0:(mode==='talk'?0.75:0.25);
+      const nod=Math.sin(bodyClock*(mode==='hum'?3.0:2.0))*0.018*energy;
+      const sway=Math.sin(bodyClock*(mode==='hum'?2.0:1.35))*0.025*energy;
+      const apply=(key,x,y,z)=>{
+        const node=poseBones[key],base=poseBase[key];
+        if(!node||!base)return;
+        node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')));
+      };
+      apply('hips',0,idleX*0.35,idleZ*0.25);
+      apply('spine',idleX+sway*0.45,0,idleZ+sway*0.3);
+      apply('chest',idleX*0.55+sway*0.55,0,nod*0.35);
+      apply('neck',nod*0.7,Math.sin(bodyClock*0.6)*0.015,0);
+      apply('head',nod,Math.sin(bodyClock*0.72)*0.025,Math.sin(bodyClock*0.8)*0.012);
+      apply('leftShoulder',0,0,active?0.025*Math.sin(phase):idleZ);
+      apply('rightShoulder',0,0,active?-0.025*Math.sin(phase*0.8+1): -idleZ);
+    };
+    applyCrossedPose(0,0);
 
-        let currentVrm = null;
-
-        loader.load(
-            modelURL,
-            (gltf) => {
-                document.getElementById('loading').style.display = 'none';
-                const model = gltf.scene;
-                scene.add(model);
-
-                if (gltf.userData.vrm) {
-                    const vrm = gltf.userData.vrm;
-                    currentVrm = vrm;
-                    
-                    VRMUtils.removeUnnecessaryVertices(gltf.scene);
-                    VRMUtils.combineSkeletons(gltf.scene);
-                    VRMUtils.rotateVRM0(vrm);
-
-                    // 🔥 हाथों को छाती पर लाने का अपडेटेड कोड 🔥
-                    const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
-                    const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
-                    const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
-                    const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
-
-                    if (leftUpperArm && rightUpperArm) {
-                        // कंधों को नीचे और अंदर की तरफ घुमाना
-                        leftUpperArm.rotation.z = 1.4; 
-                        rightUpperArm.rotation.z = -1.4;
-                        leftUpperArm.rotation.y = 0.2; // थोड़ा आगे लाने के लिए
-                        rightUpperArm.rotation.y = -0.2;
-                        
-                        // कोहनी को मोड़ना (ताकि हाथ छाती पर जुड़ें)
-                        if (leftLowerArm && rightLowerArm) {
-                            leftLowerArm.rotation.y = -1.3; 
-                            rightLowerArm.rotation.y = 1.3;
-                            leftLowerArm.rotation.x = 0.3;
-                            rightLowerArm.rotation.x = 0.3;
-                        }
-                    }
-                }
-            },
-            (progress) => console.log('लोड हो रहा है: ' + Math.round((progress.loaded / progress.total) * 100) + '%'),
-            (error) => {
-                console.error('मॉडल लोड करने में एरर:', error);
-                document.getElementById('loading').innerText = "मॉडल लोड नहीं हो पाया!";
-            }
-        );
-
-        const clock = new THREE.Clock();
-        function animate() {
-            requestAnimationFrame(animate);
-            const delta = clock.getDelta();
-            if (currentVrm) currentVrm.update(delta); // हाथों की पोज़िशन अपडेट करने के लिए
-            renderer.render(scene, camera);
-        }
-        animate();
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    </script>
+    frameModel(vrm.scene);
+    setStatus('3D Avatar तैयार है। संदेश लिखकर “पूछें और सुनें” दबाएँ।');
+    animate();
+    window.addEventListener('resize',()=>{
+      if(!renderer||!camera)return;
+      camera.aspect=Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight);
+      camera.updateProjectionMatrix();
+      renderer.setSize(stageEl.clientWidth,stageEl.clientHeight);
+    });
+  }catch(error){
+    console.error('Zoya avatar initialization failed:',error);
+    const message=error?.message||String(error);
+    setStatus('लोडिंग त्रुटि: '+message+' (जाँचें: इंटरनेट/CDN, WebGL, और models/sample_a.vrm)');
+  }
+}
+init();
+</script>
 </body>
 </html>
