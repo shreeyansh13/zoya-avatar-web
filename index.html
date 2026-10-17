@@ -14,8 +14,12 @@ main{max-width:680px;margin:auto;padding:12px;display:flex;flex-direction:column
 #stage canvas{display:block;width:100%;height:100%}
 #status{min-height:22px;color:#d0d0dc;font-size:14px;overflow-wrap:anywhere}
 textarea{width:100%;min-height:92px;resize:vertical;border:1px solid #393b49;border-radius:12px;padding:12px;color:white;background:#1b1c25;font:inherit}
-.buttons{display:flex;gap:10px}button{flex:1;padding:13px 10px;border:0;border-radius:12px;font:inherit;font-weight:700;cursor:pointer}
-#send{background:#7567ff;color:#fff}#stop{background:#30313a;color:#fff}button:disabled{opacity:.6}
+.buttons{display:flex;gap:10px;flex-wrap:wrap}
+button{flex:1;padding:13px 10px;border:0;border-radius:12px;font:inherit;font-weight:700;cursor:pointer;min-width:120px}
+#send{background:#7567ff;color:#fff}
+#sing{background:#ff5e84;color:#fff}
+#stop{background:#30313a;color:#fff}
+button:disabled{opacity:.6}
 .note{font-size:12px;line-height:1.5;color:#a7a8b3}
 </style>
 <script type="importmap">
@@ -33,32 +37,52 @@ textarea{width:100%;min-height:92px;resize:vertical;border:1px solid #393b49;bor
 <main>
   <section id="stage" aria-label="Zoya 3D avatar"></section>
   <textarea id="message" placeholder="अपना संदेश हिंदी में लिखें…">नमस्ते ज़ोया, आज की तारीख क्या है?</textarea>
-  <div class="buttons"><button id="send">💬 पूछें और सुनें</button><button id="stop">⏹ रोकें</button></div>
+  <div class="buttons">
+    <button id="send">💬 पूछें और सुनें</button>
+    <button id="sing">🎵 गुनगुनाओ</button>
+    <button id="stop">⏹ रोकें</button>
+  </div>
   <div id="status" role="status">3D मॉड्यूल शुरू हो रहे हैं…</div>
-  <div class="note">यह 3D VRM परीक्षण संस्करण है। मौजूदा Gemini /chat endpoint को ही कॉल करता है; backend और Call Flow नहीं बदलता। आवाज़ browser speech synthesis से आती है और उसके साथ अनुमानित mouth animation चलता है।</div>
+  <div class="note">यह 3D VRM परीक्षण संस्करण है। मौजूदा Gemini /chat endpoint को ही कॉल करता है; backend और Call Flow नहीं बदलता।</div>
 </main>
+
+<!-- यहाँ अपनी ऑडियो फाइल का लिंक डालें -->
+<audio id="bgm" src="YOUR_AUDIO_FILE_URL.mp3" preload="auto"></audio>
+
 <script type="module">
 const statusEl=document.getElementById('status');
 const stageEl=document.getElementById('stage');
 const messageEl=document.getElementById('message');
 const sendBtn=document.getElementById('send');
+const singBtn=document.getElementById('sing');
+const bgm=document.getElementById('bgm');
+
 let THREE, GLTFLoader, VRMLoaderPlugin, VRMUtils;
-let vrm=null,renderer=null,scene=null,camera=null,clock=null;
-let utterance=null,speaking=false,mouthPhase=0,rafId=0;
-let gesturePhase=0, gestureBlend=0, applyCrossedPose=()=>{};
+let vrm=null, renderer=null, scene=null, camera=null, clock=null;
+let utterance=null, speaking=false, singing=false;
+let mouthPhase=0, rafId=0;
+let dancePhase=0, danceBlend=0; // Dance blend controls the rhythm sway
+let gesturePhase=0, gestureBlend=0;
+let applyPose=()=>{};
 
 function setStatus(message){statusEl.textContent=message;}
+
 function stopVoice(){
   if('speechSynthesis' in window) window.speechSynthesis.cancel();
-  speaking=false; utterance=null; sendBtn.disabled=false;
+  bgm.pause();
+  bgm.currentTime = 0;
+  speaking=false; singing=false; utterance=null; 
+  sendBtn.disabled=false; singBtn.disabled=false;
   if(vrm?.expressionManager) {
     for(const name of ['aa','ih','ou']) {
       try{vrm.expressionManager.setValue(name,0)}catch(_){}
     }
   }
 }
+
+// 🗣️ Text-to-Speech (बोलने के लिए)
 function speak(text){
-  if(!('speechSynthesis' in window)){setStatus('इस ब्राउज़र में आवाज़ उपलब्ध नहीं है। Chrome में खोलकर जाँचें।');sendBtn.disabled=false;return;}
+  if(!('speechSynthesis' in window)){setStatus('इस ब्राउज़र में आवाज़ उपलब्ध नहीं है।');sendBtn.disabled=false;return;}
   stopVoice();
   utterance=new SpeechSynthesisUtterance(text);
   utterance.lang='hi-IN'; utterance.rate=.94; utterance.pitch=1.02;
@@ -67,8 +91,27 @@ function speak(text){
   utterance.onerror=(event)=>{speaking=false;sendBtn.disabled=false;setStatus('आवाज़ की त्रुटि: '+(event.error||'speech error'));};
   window.speechSynthesis.speak(utterance);
 }
+
+// 🎵 Singing/Humming (गुनगुनाने के लिए)
+function sing(){
+  stopVoice();
+  bgm.play().then(() => {
+    singing = true;
+    setStatus('ज़ोया गुनगुना रही है…');
+  }).catch(err => {
+    setStatus('ऑडियो फाइल नहीं चल पाई। कृपया src में सही MP3 लिंक डालें।');
+    singBtn.disabled = false;
+  });
+}
+bgm.onended = () => {
+  singing = false;
+  setStatus('गुनगुनाना पूरा हुआ।');
+  singBtn.disabled = false;
+};
+
+// 🌐 Backend Call (Gemini API)
 async function askBackend(userText){
-  setStatus('Gemini से जवाब माँगा जा रहा है… पहली request में backend जागने के कारण थोड़ा समय लग सकता है।');
+  setStatus('Gemini से जवाब माँगा जा रहा है…');
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 25000);
   let response;
@@ -80,22 +123,17 @@ async function askBackend(userText){
       signal: controller.signal
     });
   } catch (err) {
-    if (err?.name === 'AbortError') {
-      throw new Error('25 सेकंड में जवाब नहीं आया। Backend cold start या Gemini में देरी हो सकती है।');
-    }
+    if (err?.name === 'AbortError') throw new Error('25 सेकंड में जवाब नहीं आया।');
     throw err;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  } finally { clearTimeout(timeoutId); }
+  
   if(!response.ok) throw new Error('Backend HTTP '+response.status);
   const data=await response.json();
-  const answer=typeof data==='string'?data:
-    (data.reply??data.response??data.answer??data.text??data.message??data.output);
-  if(typeof answer!=='string'||!answer.trim()){
-    throw new Error('Backend से जवाब मिला, लेकिन response format पहचाना नहीं गया।');
-  }
+  const answer=typeof data==='string'?data:(data.reply??data.response??data.answer??data.text??data.message??data.output);
+  if(typeof answer!=='string'||!answer.trim()) throw new Error('Response format पहचाना नहीं गया।');
   return answer.trim();
 }
+
 sendBtn.addEventListener('click',async()=>{
   const question=messageEl.value.trim();
   if(!question){setStatus('पहले संदेश लिखें।');return;}
@@ -105,16 +143,18 @@ sendBtn.addEventListener('click',async()=>{
     messageEl.value=answer;
     speak(answer);
   }catch(error){
-    const msg=error?.message||'अज्ञात नेटवर्क त्रुटि';
-    if (error instanceof TypeError || /fetch|network|failed to fetch/i.test(msg)) {
-      setStatus('AI कनेक्शन ब्लॉक हुआ: यह CORS/preflight या नेटवर्क समस्या लगती है। Backend health running होने पर भी backend को इस वेबसाइट के origin की अनुमति देनी होगी; frontend अकेले CORS bypass नहीं कर सकता।');
-    } else {
-      setStatus('Gemini कनेक्शन असफल: '+msg+'. Backend में कोई बदलाव नहीं किया गया।');
-    }
+    setStatus('Gemini कनेक्शन असफल: '+error.message);
   }finally{sendBtn.disabled=false;}
 });
+
+singBtn.addEventListener('click', () => {
+  if (singing) return;
+  singBtn.disabled = true;
+  sing();
+});
+
 document.getElementById('stop').addEventListener('click',()=>{
-  stopVoice();setStatus('आवाज़ रोक दी गई।');
+  stopVoice(); setStatus('सब कुछ रोक दिया गया।');
 });
 window.addEventListener('pagehide',stopVoice);
 
@@ -122,22 +162,35 @@ function animate(){
   rafId=requestAnimationFrame(animate);
   if(!renderer||!scene||!camera)return;
   const delta=clock.getDelta();
+  
   if(vrm){
     vrm.update(delta);
-    const targetBlend = speaking ? 1 : 0;
-    gestureBlend += (targetBlend - gestureBlend) * Math.min(1, delta * 3.5);
     
+    // 1. Lip Sync & Gesture Blend (बोलने के लिए)
+    const targetGestureBlend = speaking ? 1 : 0;
+    gestureBlend += (targetGestureBlend - gestureBlend) * Math.min(1, delta * 3.5);
     if (speaking) gesturePhase += delta * 3.0;
-    try{applyCrossedPose(gestureBlend, gesturePhase);}catch(_){}
+
+    // 2. Dance/Rhythm Blend (संगीत की ताल पर हिलने के लिए)
+    const targetDanceBlend = singing ? 1 : 0;
+    danceBlend += (targetDanceBlend - danceBlend) * Math.min(1, delta * 2.0);
+    if (singing) dancePhase += delta * 4.0; // Rhythm speed
+
+    try{ applyPose(gestureBlend, gesturePhase, danceBlend, dancePhase); }catch(_){}
     
+    // Mouth Movement
     if(vrm.expressionManager){
       let amount=0;
-      if(speaking){mouthPhase+=delta*14;amount=.12+Math.abs(Math.sin(mouthPhase))*.38;}
-      try{vrm.expressionManager.setValue('aa',amount);}catch(_){}
+      if(speaking || singing){ 
+        mouthPhase += delta * 14; 
+        amount = .12 + Math.abs(Math.sin(mouthPhase)) * .38; 
+      }
+      try{vrm.expressionManager.setValue('aa', amount);}catch(_){}
     }
   }
   renderer.render(scene,camera);
 }
+
 function frameModel(model){
   model.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(model);
@@ -152,11 +205,11 @@ function frameModel(model){
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
   
-  // Camera framing: Head to navel, keeping avatar slightly lower on screen
   camera.position.set(0, 1.4, 2.4);
   camera.lookAt(0, 1.5, 0); 
   camera.updateProjectionMatrix();
 }
+
 async function init(){
   try{
     setStatus('3D libraries डाउनलोड हो रही हैं…');
@@ -190,6 +243,7 @@ async function init(){
     if(VRMUtils && typeof VRMUtils.rotateVRM0==='function') VRMUtils.rotateVRM0(vrm);
     scene.add(vrm.scene);
 
+    // सभी जरूरी बोन्स (हाथ, सिर, कंधे, धड़)
     const bone = name => vrm.humanoid?.getNormalizedBoneNode(name);
     const poseBones = {
       leftUpper: bone('leftUpperArm'),
@@ -197,7 +251,13 @@ async function init(){
       leftLower: bone('leftLowerArm'),
       rightLower: bone('rightLowerArm'),
       leftHand: bone('leftHand'),
-      rightHand: bone('rightHand')
+      rightHand: bone('rightHand'),
+      head: bone('head'),
+      neck: bone('neck'),
+      chest: bone('chest'),
+      spine: bone('spine'),
+      leftShoulder: bone('leftShoulder'),
+      rightShoulder: bone('rightShoulder')
     };
 
     const poseBase = {};
@@ -205,30 +265,51 @@ async function init(){
       if (node) poseBase[key] = node.quaternion.clone();
     }
 
-    // FIXED: Carefully inverted the axes to match YOUR specific model's rig.
-    // X brings arm forward, Y brings it inward, Z brings it down from T-pose.
-    // Lower arm Y bends the elbow inward to touch the chest.
+    // 🎯 FIXED RESTING POSE: हाथ अब बिल्कुल छाती के सामने (Front) रहेंगे।
+    // X = आगे, Y = अंदर की तरफ, Z = नीचे की तरफ।
     const restAngles = {
-      leftUpper:  [ 0.4, -0.5,  1.1],  
-      rightUpper: [ 0.4,  0.5, -1.1],  
-      leftLower:  [ 0.0, -1.3,  0.0],  
-      rightLower: [ 0.0,  1.3,  0.0],  
+      leftUpper:  [ 0.6,  0.2,  0.8],  
+      rightUpper: [ 0.6, -0.2, -0.8],  
+      leftLower:  [ 0.0, -1.4,  0.0],  
+      rightLower: [ 0.0,  1.4,  0.0],  
       leftHand:   [ 0.0, -0.2,  0.0],
-      rightHand:  [ 0.0,  0.2,  0.0]
+      rightHand:  [ 0.0,  0.2,  0.0],
+      head:       [ 0.0,  0.0,  0.0],
+      neck:       [ 0.0,  0.0,  0.0],
+      chest:      [ 0.0,  0.0,  0.0],
+      spine:      [ 0.0,  0.0,  0.0],
+      leftShoulder: [0.0, 0.0, 0.0],
+      rightShoulder:[0.0, 0.0, 0.0]
     };
 
-    applyCrossedPose = (blend = 0, phase = 0) => {
-      const a = Math.sin(phase);
-      const b = Math.sin(phase * 0.72 + 1.0);
+    applyPose = (gBlend = 0, gPhase = 0, dBlend = 0, dPhase = 0) => {
+      // 1. बोलते समय हाथों की हल्की हरकत
+      const g_a = Math.sin(gPhase);
+      const g_b = Math.sin(gPhase * 0.72 + 1.0);
       
-      // Subtle gestures while speaking (adjusted to match the new base pose)
       const gestureAngles = {
-        leftUpper:  [0.02 * a * blend, -0.02 * b * blend, 0.0],
-        rightUpper: [0.02 * a * blend, 0.02 * b * blend, 0.0],
-        leftLower:  [0.0, -0.1 * Math.sin(phase * 0.8) * blend, 0.0],
-        rightLower: [0.0, 0.1 * Math.sin(phase * 0.9) * blend, 0.0],
-        leftHand:   [0.0, -0.05 * a * blend, 0.0],
-        rightHand:  [0.0, 0.05 * b * blend, 0.0]
+        leftUpper:  [0.02 * g_a * gBlend, 0.02 * g_b * gBlend, 0.0],
+        rightUpper: [0.02 * g_a * gBlend, -0.02 * g_b * gBlend, 0.0],
+        leftLower:  [0.0, 0.1 * Math.sin(gPhase * 0.8) * gBlend, 0.0],
+        rightLower: [0.0, -0.1 * Math.sin(gPhase * 0.9) * gBlend, 0.0],
+        leftHand:   [0.0, 0.05 * g_a * gBlend, 0.0],
+        rightHand:  [0.0, -0.05 * g_b * gBlend, 0.0]
+      };
+
+      // 2. संगीत की ताल पर सिर, कंधे और धड़ की हल्की हरकत (Dance/Sway)
+      const d_sin1 = Math.sin(dPhase);
+      const d_sin2 = Math.sin(dPhase * 1.5);
+      const d_cos = Math.cos(dPhase);
+
+      const danceAngles = {
+        head:       [0.0, 0.08 * d_sin1 * dBlend, 0.05 * d_cos * dBlend],
+        neck:       [0.0, 0.04 * d_sin1 * dBlend, 0.0],
+        chest:      [0.02 * d_sin1 * dBlend, 0.0, 0.03 * d_cos * dBlend],
+        spine:      [0.0, 0.0, 0.02 * d_sin1 * dBlend],
+        leftShoulder:  [0.0, 0.0, 0.05 * d_sin2 * dBlend],
+        rightShoulder: [0.0, 0.0, -0.05 * d_sin2 * dBlend],
+        leftUpper:  [0.0, 0.0, 0.03 * d_sin1 * dBlend],
+        rightUpper: [0.0, 0.0, -0.03 * d_sin1 * dBlend]
       };
 
       for (const key of Object.keys(poseBones)) {
@@ -237,12 +318,15 @@ async function init(){
         if (!node || !base) continue;
 
         const rest = restAngles[key] || [0, 0, 0];
-        const gesture = gestureAngles[key] || [0, 0, 0];
+        const g = gestureAngles[key] || [0, 0, 0];
+        const d = danceAngles[key] || [0, 0, 0];
+        
+        // Rest + Gesture + Dance को जोड़ना
         const offset = new THREE.Quaternion().setFromEuler(
           new THREE.Euler(
-            rest[0] + gesture[0],
-            rest[1] + gesture[1],
-            rest[2] + gesture[2],
+            rest[0] + g[0] + d[0],
+            rest[1] + g[1] + d[1],
+            rest[2] + g[2] + d[2],
             'XYZ'
           )
         );
@@ -250,7 +334,7 @@ async function init(){
       }
     };
 
-    applyCrossedPose(0, 0);
+    applyPose(0, 0, 0, 0);
 
     frameModel(vrm.scene);
     setStatus('3D Avatar तैयार है। संदेश लिखकर “पूछें और सुनें” दबाएँ।');
@@ -263,8 +347,7 @@ async function init(){
     });
   }catch(error){
     console.error('Zoya avatar initialization failed:',error);
-    const message=error?.message||String(error);
-    setStatus('लोडिंग त्रुटि: '+message+' (जाँचें: इंटरनेट/CDN, WebGL, और models/sample_a.vrm)');
+    setStatus('लोडिंग त्रुटि: '+error.message);
   }
 }
 init();
