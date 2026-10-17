@@ -205,30 +205,30 @@ async function init(){
       if (node) poseBase[key] = node.quaternion.clone();
     }
 
-    // FIXED: Carefully adjusted X, Y, Z axes to force hands to the FRONT and slightly INWARD.
-    // Left/Right Upper Arm: Z brings arms down. Y brings them forward.
-    // Left/Right Lower Arm: X bends elbows forward so hands appear in front of the chest.
+    // FIXED: Carefully inverted the axes to match YOUR specific model's rig.
+    // X brings arm forward, Y brings it inward, Z brings it down from T-pose.
+    // Lower arm Y bends the elbow inward to touch the chest.
     const restAngles = {
-      leftUpper:  [ 0.0,  0.6,  1.1],  // Arm down (Z), Forward (Y)
-      rightUpper: [ 0.0, -0.6, -1.1],  // Arm down (Z), Forward (Y)
-      leftLower:  [ 1.3,  0.0,  0.0],  // Elbow bends FORWARD (X) to chest
-      rightLower: [ 1.3,  0.0,  0.0],  // Elbow bends FORWARD (X) to chest
-      leftHand:   [ 0.0,  0.0,  0.0],
-      rightHand:  [ 0.0,  0.0,  0.0]
+      leftUpper:  [ 0.4, -0.5,  1.1],  
+      rightUpper: [ 0.4,  0.5, -1.1],  
+      leftLower:  [ 0.0, -1.3,  0.0],  
+      rightLower: [ 0.0,  1.3,  0.0],  
+      leftHand:   [ 0.0, -0.2,  0.0],
+      rightHand:  [ 0.0,  0.2,  0.0]
     };
 
     applyCrossedPose = (blend = 0, phase = 0) => {
       const a = Math.sin(phase);
       const b = Math.sin(phase * 0.72 + 1.0);
       
-      // Subtle gestures while speaking (from infographic)
+      // Subtle gestures while speaking (adjusted to match the new base pose)
       const gestureAngles = {
-        leftUpper:  [0.02 * a * blend, 0.02 * b * blend, 0.0],
-        rightUpper: [0.02 * a * blend, -0.02 * b * blend, 0.0],
-        leftLower:  [0.05 * Math.sin(phase * 0.8) * blend, 0.0, 0.0],
-        rightLower: [0.05 * Math.sin(phase * 0.9) * blend, 0.0, 0.0],
-        leftHand:   [0.0, 0.05 * a * blend, 0.0],
-        rightHand:  [0.0, -0.05 * b * blend, 0.0]
+        leftUpper:  [0.02 * a * blend, -0.02 * b * blend, 0.0],
+        rightUpper: [0.02 * a * blend, 0.02 * b * blend, 0.0],
+        leftLower:  [0.0, -0.1 * Math.sin(phase * 0.8) * blend, 0.0],
+        rightLower: [0.0, 0.1 * Math.sin(phase * 0.9) * blend, 0.0],
+        leftHand:   [0.0, -0.05 * a * blend, 0.0],
+        rightHand:  [0.0, 0.05 * b * blend, 0.0]
       };
 
       for (const key of Object.keys(poseBones)) {
