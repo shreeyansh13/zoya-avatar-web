@@ -196,8 +196,8 @@ function frameModel(model){
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
   // Portrait framing: show Zoya from head to waist rather than full body.
-  camera.position.set(0,1.42,1.65);
-  camera.lookAt(0,1.34,0);
+  camera.position.set(0,1.48,1.95);
+  camera.lookAt(0,1.48,0);
   camera.updateProjectionMatrix();
 }
 async function init(){
@@ -255,13 +255,12 @@ async function init(){
       // VRM sample_a.vrm uses outward-pointing arm chains:
       // left arm bones extend along local -X, right arm bones along local +X.
       // Turn upper arms forward and down; bend forearms inward toward the chest.
-      // The previous test placed the forearms behind the torso.
-      // Reverse the forward-depth yaw based on the observed live render,
-      // and reduce the elbow yaw so the hands remain visible in front.
-      leftUpper:  [-0.08, -0.28,  0.92],
-      rightUpper: [-0.08,  0.28, -0.92],
-      leftLower:  [0.00, -0.42, -0.62],
-      rightLower: [0.00,  0.42,  0.62],
+      // Stronger inward bend after the live test still showed arms spread outward.
+      // This is a new test pose; exact bone axes can vary by VRM model, so verify live.
+      leftUpper:  [0.10, -0.52,  1.28],
+      rightUpper: [0.10,  0.52, -1.28],
+      leftLower:  [0.00, -0.72, -0.92],
+      rightLower: [0.00,  0.72,  0.92],
       leftHand:   [0.00,  0.00,  0.06],
       rightHand:  [0.00,  0.00, -0.06]
     };
