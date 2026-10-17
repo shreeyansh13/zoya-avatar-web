@@ -36,7 +36,7 @@ textarea{width:100%;min-height:92px;resize:vertical;border:1px solid #393b49;bor
   <div class="buttons"><button id="send">💬 पूछें और सुनें</button><button id="stop">⏹ रोकें</button></div>
   <div class="buttons"><button id="humOriginal">🎵 मौलिक धुन</button><button id="humRequested">🎶 गुनगुनाएँ</button></div>
   <div id="status" role="status">3D मॉड्यूल शुरू हो रहे हैं…</div>
-  <div class="note">यह 3D VRM परीक्षण संस्करण है। Gemini /chat backend और Android Call Flow नहीं बदले गए। बातचीत में browser speech synthesis और गुनगुनाने में locally generated melody tones उपयोग होते हैं; यह अभी मानव-जैसी humming voice या copyrighted song recording नहीं है।</div>
+  <div class="note">यह 3D VRM बैठने की मुद्रा वाला परीक्षण संस्करण है। Gemini /chat backend और Android Call Flow नहीं बदले गए। बातचीत में browser speech synthesis और गुनगुनाने में locally generated melody tones उपयोग होते हैं; यह अभी मानव-जैसी humming voice या copyrighted song recording नहीं है।</div>
 </main>
 <script type="module">
 const statusEl=document.getElementById('status');
@@ -49,6 +49,7 @@ let utterance=null,speaking=false,mouthPhase=0,rafId=0;
 let gesturePhase=0, gestureBlend=0, applyCrossedPose=()=>{};
 let behaviorMode='idle', audioCtx=null, melodyTimer=null, melodyNodes=[];
 let applyBodyPose=()=>{};
+let chairGroup=null;
 
 function setStatus(message){statusEl.textContent=message;}
 function stopVoice(){
@@ -197,9 +198,9 @@ function frameModel(model){
   model.position.y-=bounds.min.y*scale;
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
-  // Portrait framing: show Zoya from head to waist rather than full body.
-  camera.position.set(0,1.34,2.55);
-  camera.lookAt(0,1.18,0);
+  // Seated portrait framing: include head, torso, lap and chair seat.
+  camera.position.set(0,1.12,2.85);
+  camera.lookAt(0,0.98,0);
   camera.updateProjectionMatrix();
 }
 async function init(){
@@ -225,6 +226,25 @@ async function init(){
     scene.add(new THREE.HemisphereLight(0xffffff,0x62627b,2));
     const key=new THREE.DirectionalLight(0xffffff,2);key.position.set(1,3,4);scene.add(key);
     const fill=new THREE.DirectionalLight(0xa9b8ff,.7);fill.position.set(-3,2,1);scene.add(fill);
+    // Simple 3D chair placed behind Zoya; no external image assets required.
+    chairGroup = new THREE.Group();
+    const chairMat = new THREE.MeshStandardMaterial({color:0xd9c8ad, roughness:.82});
+    const darkMat = new THREE.MeshStandardMaterial({color:0x47382f, roughness:.8});
+    const makeChairPart=(w,h,d,x,y,z,mat,round=0)=>{
+      const geo=new THREE.BoxGeometry(w,h,d);
+      const mesh=new THREE.Mesh(geo,mat); mesh.position.set(x,y,z); chairGroup.add(mesh); return mesh;
+    };
+    // Seat and back are intentionally behind the avatar so they don't cover the model.
+    makeChairPart(1.12,.16,.78,0,.58,-.24,chairMat);
+    makeChairPart(1.08,.92,.14,0,1.02,-.57,chairMat);
+    makeChairPart(.10,.82,.16,-.54,.99,-.48,darkMat);
+    makeChairPart(.10,.82,.16,.54,.99,-.48,darkMat);
+    // Front legs and rear support.
+    for(const x of [-.46,.46]) for(const z of [-.48,.03]) makeChairPart(.075,.58,.075,x,.29,z,darkMat);
+    // Arm rests
+    makeChairPart(.16,.10,.56,-.61,.82,-.20,chairMat);
+    makeChairPart(.16,.10,.56,.61,.82,-.20,chairMat);
+    scene.add(chairGroup);
     clock=new THREE.Clock();
     setStatus('models/sample_a.vrm डाउनलोड हो रहा है…');
     const loader=new GLTFLoader();
@@ -245,7 +265,10 @@ async function init(){
       leftShoulder: bone('leftShoulder'), rightShoulder: bone('rightShoulder'),
       leftUpper: bone('leftUpperArm'), rightUpper: bone('rightUpperArm'),
       leftLower: bone('leftLowerArm'), rightLower: bone('rightLowerArm'),
-      leftHand: bone('leftHand'), rightHand: bone('rightHand')
+      leftHand: bone('leftHand'), rightHand: bone('rightHand'),
+      leftUpperLeg: bone('leftUpperLeg'), rightUpperLeg: bone('rightUpperLeg'),
+      leftLowerLeg: bone('leftLowerLeg'), rightLowerLeg: bone('rightLowerLeg'),
+      leftFoot: bone('leftFoot'), rightFoot: bone('rightFoot')
     };
     const poseBase = {};
     for (const [key, node] of Object.entries(poseBones)) {
@@ -336,6 +359,19 @@ async function init(){
         node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')));
       };
       apply('hips',0,idleX*0.35,idleZ*0.25);
+      // Seated pose approximation: thighs forward, knees bent downward, feet relaxed.
+      // These offsets are additive to the VRM's authored rest rotations.
+      const seated=(key,x,y,z)=>{
+        const node=poseBones[key],base=poseBase[key];
+        if(!node||!base)return;
+        node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')));
+      };
+      seated('leftUpperLeg',-0.92,0.04,-0.08);
+      seated('rightUpperLeg',-0.92,-0.04,0.08);
+      seated('leftLowerLeg',1.22,0,0.02);
+      seated('rightLowerLeg',1.22,0,-0.02);
+      seated('leftFoot',-0.18,0,0);
+      seated('rightFoot',-0.18,0,0);
       apply('spine',idleX+sway*0.45,0,idleZ+sway*0.3);
       apply('chest',idleX*0.55+sway*0.55,0,nod*0.35);
       apply('neck',nod*0.7,Math.sin(bodyClock*0.6)*0.015,0);
@@ -346,21 +382,9 @@ async function init(){
     applyCrossedPose(0,0);
 
     frameModel(vrm.scene);
-    setStatus('3D Avatar तैयार है। संदेश लिखकर “पूछें और सुनें” दबाएँ।');
+    setStatus('बैठा हुआ 3D Avatar तैयार है। संदेश लिखकर “पूछें और सुनें” दबाएँ।');
     animate();
     window.addEventListener('resize',()=>{
       if(!renderer||!camera)return;
       camera.aspect=Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight);
-      camera.updateProjectionMatrix();
-      renderer.setSize(stageEl.clientWidth,stageEl.clientHeight);
-    });
-  }catch(error){
-    console.error('Zoya avatar initialization failed:',error);
-    const message=error?.message||String(error);
-    setStatus('लोडिंग त्रुटि: '+message+' (जाँचें: इंटरनेट/CDN, WebGL, और models/sample_a.vrm)');
-  }
-}
-init();
-</script>
-</body>
-</html>
+     
