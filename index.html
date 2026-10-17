@@ -172,6 +172,8 @@ function animate(){
     const targetBlend = speaking ? 1 : 0;
     gestureBlend += (targetBlend - gestureBlend) * Math.min(1, delta * 3.5);
     if (speaking) gesturePhase += delta * 5.0;
+    // Apply torso/head motion first, then solve arms against the updated chest position.
+    try{applyBodyPose(delta, behaviorMode, gesturePhase);}catch(_){}
     try{applyCrossedPose(gestureBlend, gesturePhase);}catch(_){}
     if(vrm.expressionManager){
       let amount=0;
@@ -288,14 +290,15 @@ async function init(){
       if(!chestNode)return;
       const chest=worldPos(chestNode);
       // Hands meet slightly below the collarbone, visibly in front of the torso.
-      const front=0.18;
-      // Place both wrist targets on the upper-middle chest, not near the neck or waist.
-      const leftTarget=chest.clone().add(new THREE.Vector3(-0.055,-0.12,front));
-      const rightTarget=chest.clone().add(new THREE.Vector3(0.055,-0.12,front));
+      const front=0.24;
+      // Bring wrists to the sternum/upper chest, close together and clearly in front.
+      // Previous live test put the hands at the waist, so raise the target.
+      const leftTarget=chest.clone().add(new THREE.Vector3(-0.045,0.075,front));
+      const rightTarget=chest.clone().add(new THREE.Vector3(0.045,0.075,front));
       const leftShoulder=poseBones.leftShoulder||poseBones.leftUpper;
       const rightShoulder=poseBones.rightShoulder||poseBones.rightUpper;
-      const leftElbow=leftShoulder?worldPos(leftShoulder).add(new THREE.Vector3(-0.19,-0.10,0.08)):null;
-      const rightElbow=rightShoulder?worldPos(rightShoulder).add(new THREE.Vector3(0.19,-0.10,0.08)):null;
+      const leftElbow=leftShoulder?worldPos(leftShoulder).add(new THREE.Vector3(-0.16,-0.015,0.13)):null;
+      const rightElbow=rightShoulder?worldPos(rightShoulder).add(new THREE.Vector3(0.16,-0.015,0.13)):null;
       // Aim upper arm toward a gently outward elbow, then forearm toward the hand target.
       aimSegment(poseBones.leftUpper,poseBones.leftLower,leftElbow);
       aimSegment(poseBones.leftLower,poseBones.leftHand,leftTarget);
@@ -319,12 +322,12 @@ async function init(){
     let bodyClock=0;
     applyBodyPose = (delta, mode, phase) => {
       bodyClock += delta;
-      const idleX=Math.sin(bodyClock*1.15)*0.018;
-      const idleZ=Math.sin(bodyClock*0.82)*0.012;
+      const idleX=Math.sin(bodyClock*1.15)*0.022;
+      const idleZ=Math.sin(bodyClock*0.82)*0.016;
       const active=(mode==='talk'||mode==='hum');
       const energy=mode==='hum'?1.0:(mode==='talk'?0.75:0.25);
-      const nod=Math.sin(bodyClock*(mode==='hum'?3.0:2.0))*0.018*energy;
-      const sway=Math.sin(bodyClock*(mode==='hum'?2.0:1.35))*0.025*energy;
+      const nod=Math.sin(bodyClock*(mode==='hum'?3.0:2.0))*0.026*energy;
+      const sway=Math.sin(bodyClock*(mode==='hum'?2.0:1.35))*0.038*energy;
       const apply=(key,x,y,z)=>{
         const node=poseBones[key],base=poseBase[key];
         if(!node||!base)return;
