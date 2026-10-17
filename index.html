@@ -94,8 +94,7 @@ async function askBackend(userText){
   const timeoutId = setTimeout(() => controller.abort(), 25000);
   let response;
   try {
-    response = await fetch('https://zoya-backend-ctr8.onrender.com/chat',{
-      method:'POST',
+    response = await fetch('https://zoya-backend-ctr8.onrender.com/chat',{method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({message:userText}),
       signal: controller.signal
@@ -309,9 +308,7 @@ async function init(){
     const poseBase = {};
     for (const [key, node] of Object.entries(poseBones)) {
       if (node) poseBase[key] = node.quaternion.clone();
-    }
-
-    // Chest pose via world-space two-segment IK rather than guessed Euler angles.
+}// Chest pose via world-space two-segment IK rather than guessed Euler angles.
     // This aims the actual upper-arm and forearm segments toward chest targets.
     const armNodes = {
       leftUpper: poseBones.leftUpper, rightUpper: poseBones.rightUpper,
@@ -371,4 +368,74 @@ async function init(){
         if(node&&base){
           const wiggle=active?Math.sin(phase+(sign>0?0:1))*0.018:0;
           const rest=restAngles[key];
-          node.quaternion.copy(base).multiply(new THREE.Quaternion
+          node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(
+            new THREE.Euler(rest[0]+wiggle,rest[1],rest[2]-sign*0.035,'XYZ')));
+        }
+      }
+      vrm.scene.updateMatrixWorld(true);
+    };
+
+    // Continuous whole-upper-body animation. Gentle idle breathing/sway always runs;
+    // speaking and humming add more head, torso and shoulder motion. animate() calls this each frame.
+    let bodyClock=0;
+    applyBodyPose = (delta, mode, phase) => {
+      bodyClock += delta;
+      const idleX=Math.sin(bodyClock*1.15)*0.018;
+      const idleZ=Math.sin(bodyClock*0.82)*0.012;
+      const active=(mode==='talk'||mode==='hum');
+      const energy=mode==='hum'?1.0:(mode==='talk'?0.75:0.25);
+      const nod=Math.sin(bodyClock*(mode==='hum'?3.0:2.0))*0.024*energy;
+      const sway=Math.sin(bodyClock*(mode==='hum'?2.0:1.35))*0.032*energy;
+      const apply=(key,x,y,z)=>{
+        const node=poseBones[key],base=poseBase[key];
+        if(!node||!base)return;
+        node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')));
+      };
+      apply('hips',0,idleX*0.35,idleZ*0.25);
+      // Seated pose approximation: thighs forward, knees bent downward, feet relaxed.
+      // These offsets are additive to the VRM's authored rest rotations.
+      const seated=(key,x,y,z)=>{
+        const node=poseBones[key],base=poseBase[key];
+        if(!node||!base)return;
+        node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')));
+      };
+      seated('leftUpperLeg',-0.92,0.04,-0.08);
+      seated('rightUpperLeg',-0.92,-0.04,0.08);
+      seated('leftLowerLeg',1.22,0,0.02);
+      seated('rightLowerLeg',1.22,0,-0.02);
+      seated('leftFoot',-0.18,0,0);
+      seated('rightFoot',-0.18,0,0);
+      apply('spine',idleX+sway*0.45,0,idleZ+sway*0.3);
+      apply('chest',idleX*0.55+sway*0.55,0,nod*0.35);
+      apply('neck',nod*0.7,Math.sin(bodyClock*0.6)*0.015,0);
+      apply('head',nod,Math.sin(bodyClock*0.72)*0.025,Math.sin(bodyClock*0.8)*0.012);
+      apply('leftShoulder',0,0,active?0.025*Math.sin(phase):idleZ);
+      apply('rightShoulder',0,0,active?-0.025*Math.sin(phase*0.8+1): -idleZ);
+    };
+    applyCrossedPose(0,0);
+
+    frameModel(vrm.scene);
+    hideLoading();
+    const loadSeconds=((performance.now()-initStartedAt)/1000).toFixed(1);
+    setStatus(`बैठा हुआ 3D Avatar तैयार है (${loadSeconds} सेकंड)। संदेश लिखकर “पूछें और सुनें” दबाएँ।`);
+    animate();
+    window.addEventListener('resize',()=>{
+      if(!renderer||!camera)return;
+      camera.aspect=Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight);
+      camera.updateProjectionMatrix();
+      renderer.setSize(stageEl.clientWidth,stageEl.clientHeight);
+    });
+  }catch(error){
+    hideLoading();
+    console.error('Zoya avatar initialization failed:',error);
+    const message=error?.message||String(error);
+    setStatus('लोडिंग त्रुटि: '+message+' (जाँचें: इंटरनेट/CDN, WebGL, और models/sample_a.vrm)');
+    showLoading('3D Avatar लोड नहीं हुआ। '+message+' इंटरनेट और models/sample_a.vrm की उपलब्धता जाँचें, फिर पेज रीफ्रेश करें।');
+    const spinner=loadingEl?.querySelector('.spinner'); if(spinner)spinner.hidden=true;
+  }
+}
+init();
+</script>
+</body>
+</html>
+
