@@ -2,49 +2,54 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Zoya AI - 3D Avatar</title>
     <style>
+        /* बेसिक सेटिंग */
         body {
             margin: 0;
             padding: 0;
             overflow: hidden;
-            background-color: #11111a; /* डार्क बैकग्राउंड */
-            font-family: Arial, sans-serif;
+            background-color: #181824; /* डार्क बैकग्राउंड */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
+        /* 3D अवतार का कंटेनर */
         #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100vw;
             height: 100vh;
-            /* यहाँ CSS से ज़ूम और नीचे शिफ्ट किया गया है */
-            transform: scale(1.35) translateY(12%);
-            transform-origin: top center; /* ऊपर से ज़ूम होकर नीचे आएगा */
-            transition: transform 0.5s ease;
+            z-index: 1;
+            
+            /* 🔥 यहाँ ज़ूम और नीचे शिफ्ट करने का जादू है 🔥 */
+            transform: scale(1.45) translateY(12%); 
+            transform-origin: top center; 
         }
 
-        /* UI के बटन (जैसे आपकी स्क्रीनशॉट में हैं) */
+        /* नीचे का UI (चैट और बटन) */
         .ui-container {
             position: absolute;
-            bottom: 20px;
+            bottom: 15px;
             left: 0;
             width: 100%;
-            padding: 15px;
+            padding: 0 15px;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
             z-index: 10;
         }
 
         .chat-box {
-            background: rgba(30, 30, 45, 0.9);
-            border: 1px solid #333;
-            color: white;
+            background: #232330;
+            border: 1px solid #3a3a4a;
+            color: #ffffff;
             padding: 15px;
-            border-radius: 10px;
-            width: 100%;
-            box-sizing: border-box;
+            border-radius: 12px;
             font-size: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
 
         .button-row {
@@ -54,16 +59,21 @@
 
         .btn {
             flex: 1;
-            padding: 12px;
+            padding: 14px 10px;
             border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
+            transition: opacity 0.2s;
+        }
+
+        .btn:active {
+            opacity: 0.7;
         }
 
         .btn-primary {
@@ -74,15 +84,27 @@
         .btn-secondary {
             background-color: #2a2a35;
             color: white;
+            border: 1px solid #3a3a4a;
+        }
+        
+        /* लोडिंग इंडिकेटर */
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            z-index: 5;
         }
     </style>
 </head>
 <body>
 
-    <!-- 3D अवतार यहाँ लोड होगा -->
+    <div id="loading">अवतार लोड हो रहा है...</div>
     <div id="canvas-container"></div>
 
-    <!-- नीचे का UI (सिर्फ डिज़ाइन के लिए) -->
+    <!-- UI सेक्शन -->
     <div class="ui-container">
         <div class="chat-box">
             नमस्ते ज़ोया, आज की तारीख क्या है?
@@ -97,12 +119,13 @@
         </div>
     </div>
 
-    <!-- Three.js और GLTFLoader (3D मॉडल लोड करने के लिए) -->
+    <!-- Three.js और VRM लोडर इम्पोर्ट -->
     <script type="importmap">
         {
             "imports": {
                 "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@3.0.0/lib/three-vrm.module.js"
             }
         }
     </script>
@@ -112,80 +135,75 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 
-        // 1. Scene, Camera, Renderer सेटअप
+        // 1. सीन (Scene) सेटअप
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
         
-        const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 1.2, 3); // कैमरा पोज़िशन
+        // कैमरा
+        const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.2, 3); // कैमरा की पोज़िशन
 
+        // रेंडरर
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         container.appendChild(renderer.domElement);
 
-        // 2. लाइटिंग सेटअप (अवतार चमकदार दिखेगा)
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+        // 2. लाइटिंग (अवतार को उजला दिखाने के लिए)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
         scene.add(ambientLight);
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
         directionalLight.position.set(1, 2, 3);
         scene.add(directionalLight);
 
-        // 3. 3D मॉडल लोड करना (VRM या GLB)
+        // 3. मॉडल लोड करना
         const loader = new GLTFLoader();
-        // VRM मॉडल सपोर्ट के लिए प्लगइन (अगर आप .vrm फाइल यूज़ कर रहे हैं)
         loader.register((parser) => new VRMLoaderPlugin(parser));
 
-        // ⚠️ यहाँ अपनी मॉडल फाइल का पाथ डालें! 
-        // उदाहरण: 'models/zoya.vrm' या 'models/avatar.glb'
-        const modelURL = 'models/your_avatar_model.vrm'; 
+        // ⚠️ यहाँ अपनी असली 3D फाइल का नाम डालें (जैसे: 'zoya.vrm' या 'avatar.glb')
+        // अभी के लिए मैंने इंटरनेट से एक टेस्ट मॉडल का लिंक डाला है ताकि स्क्रीन काली ना दिखे।
+        const modelURL = 'https://pixiv.github.io/three-vrm/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm'; 
 
         loader.load(
             modelURL,
             (gltf) => {
+                document.getElementById('loading').style.display = 'none'; // लोडिंग हटाएं
+                
                 const model = gltf.scene;
                 scene.add(model);
 
-                // अगर VRM मॉडल है, तो उसे सही से सेट करें
+                // VRM मॉडल सेटिंग्स
                 if (gltf.userData.vrm) {
                     const vrm = gltf.userData.vrm;
                     VRMUtils.removeUnnecessaryVertices(gltf.scene);
                     VRMUtils.combineSkeletons(gltf.scene);
                     VRMUtils.rotateVRM0(vrm);
-                    
-                    // मॉडल को स्क्रीन के सेंटर में लाना
-                    model.position.y = 0; 
                 }
             },
             (progress) => {
-                console.log('लोड हो रहा है: ' + (progress.loaded / progress.total * 100) + '%');
+                console.log('लोड हो रहा है: ' + Math.round((progress.loaded / progress.total) * 100) + '%');
             },
             (error) => {
                 console.error('मॉडल लोड करने में एरर:', error);
-                // अगर मॉडल नहीं मिला, तो टेस्टिंग के लिए एक क्यूब दिखाएं
-                const geometry = new THREE.BoxGeometry(1, 1.5, 0.5);
-                const material = new THREE.MeshStandardMaterial({ color: 0xff9999 });
-                const cube = new THREE.Mesh(geometry, material);
-                cube.position.y = 0.75;
-                scene.add(cube);
+                document.getElementById('loading').innerText = "मॉडल लोड नहीं हो पाया!";
             }
         );
 
-        // 4. एनिमेशन लूप
+        // 4. एनिमेशन लूप (स्क्रीन को रेंडर करने के लिए)
         const clock = new THREE.Clock();
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
             
-            // अगर आपको मॉडल में हिलना-डुलना (Idle animation) चाहिए तो यहाँ करें
+            // यहाँ आप आगे चलकर अवतार के हिलने-डुलने (Idle animation) का कोड जोड़ सकते हैं
 
             renderer.render(scene, camera);
         }
         animate();
 
-        // 5. स्क्रीन रीसाइज़ होने पर एडजस्ट करना
+        // 5. स्क्रीन साइज़ के हिसाब से एडजस्टमेंट
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
