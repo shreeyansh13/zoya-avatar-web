@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#101116">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="//cdn.jsdelivr.net">
 <title>Zoya AI — 3D Avatar</title>
 <style>
 *{box-sizing:border-box}:root{color-scheme:dark}
@@ -12,6 +14,11 @@ header{padding:14px 16px;font-size:20px;font-weight:750;border-bottom:1px solid 
 main{max-width:680px;margin:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
 #stage{height:clamp(370px,62dvh,620px);position:relative;overflow:hidden;border:1px solid #30313a;border-radius:18px;background:radial-gradient(ellipse at 50% 35%,#292a3b,#12131a 70%)}
 #stage canvas{display:block;width:100%;height:100%}
+#loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:radial-gradient(ellipse at 50% 35%,#292a3b,#12131a 70%);color:#d9d9e8;text-align:center;padding:20px;z-index:2}
+#loading[hidden]{display:none}
+.spinner{width:34px;height:34px;border:3px solid #44465d;border-top-color:#7567ff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loadingText{font-size:14px;line-height:1.5}
 #status{min-height:22px;color:#d0d0dc;font-size:14px;overflow-wrap:anywhere}
 textarea{width:100%;min-height:92px;resize:vertical;border:1px solid #393b49;border-radius:12px;padding:12px;color:white;background:#1b1c25;font:inherit}
 .buttons{display:flex;gap:10px}button{flex:1;padding:13px 10px;border:0;border-radius:12px;font:inherit;font-weight:700;cursor:pointer}
@@ -31,7 +38,7 @@ textarea{width:100%;min-height:92px;resize:vertical;border:1px solid #393b49;bor
 <body>
 <header>ZOYA AI · 3D AVATAR</header>
 <main>
-  <section id="stage" aria-label="Zoya 3D avatar"></section>
+  <section id="stage" aria-label="Zoya 3D avatar"><div id="loading"><div class="spinner" aria-hidden="true"></div><div id="loadingText">ज़ोया का 3D अवतार लोड हो रहा है…</div></div></section>
   <textarea id="message" placeholder="अपना संदेश हिंदी में लिखें…">नमस्ते ज़ोया, आज की तारीख क्या है?</textarea>
   <div class="buttons"><button id="send">💬 पूछें और सुनें</button><button id="stop">⏹ रोकें</button></div>
   <div class="buttons"><button id="humOriginal">🎵 मौलिक धुन</button><button id="humRequested">🎶 गुनगुनाएँ</button></div>
@@ -41,6 +48,11 @@ textarea{width:100%;min-height:92px;resize:vertical;border:1px solid #393b49;bor
 <script type="module">
 const statusEl=document.getElementById('status');
 const stageEl=document.getElementById('stage');
+const loadingEl=document.getElementById('loading');
+const loadingTextEl=document.getElementById('loadingText');
+let loadingNoticeTimer=null;
+function showLoading(message){if(loadingTextEl)loadingTextEl.textContent=message;if(loadingEl)loadingEl.hidden=false;}
+function hideLoading(){if(loadingNoticeTimer){clearTimeout(loadingNoticeTimer);loadingNoticeTimer=null;}if(loadingEl)loadingEl.hidden=true;}
 const messageEl=document.getElementById('message');
 const sendBtn=document.getElementById('send');
 let THREE, GLTFLoader, VRMLoaderPlugin, VRMUtils;
@@ -204,9 +216,17 @@ function frameModel(model){
   camera.updateProjectionMatrix();
 }
 async function init(){
-  let stageTimeout;
+  const initStartedAt=performance.now();
+  showLoading('ज़ोया का 3D अवतार लोड हो रहा है…');
+  setStatus('3D libraries डाउनलोड हो रही हैं…');
+  // 5 सेकंड के बाद उपयोगकर्ता को स्पष्ट स्थिति दिखाएँ; वास्तविक लोडिंग जारी रहती है।
+  loadingNoticeTimer=setTimeout(()=>{
+    if(!vrm){
+      showLoading('अवतार तैयार हो रहा है… पहली बार डाउनलोड में 5 सेकंड से अधिक लग सकते हैं। कृपया पेज खुला रखें।');
+      setStatus('3D लोडिंग जारी है… धीमे नेटवर्क पर पहली बार थोड़ा अधिक समय लग सकता है।');
+    }
+  },5000);
   try{
-    setStatus('3D libraries डाउनलोड हो रही हैं…');
     // Import errors are caught here, instead of leaving the page stuck at the initial status.
     const imports=await Promise.all([
       import('three'),
@@ -355,36 +375,4 @@ async function init(){
       const sway=Math.sin(bodyClock*(mode==='hum'?2.0:1.35))*0.032*energy;
       const apply=(key,x,y,z)=>{
         const node=poseBones[key],base=poseBase[key];
-        if(!node||!base)return;
-        node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')));
-      };
-      apply('hips',0,idleX*0.35,idleZ*0.25);
-      // Seated pose approximation: thighs forward, knees bent downward, feet relaxed.
-      // These offsets are additive to the VRM's authored rest rotations.
-      const seated=(key,x,y,z)=>{
-        const node=poseBones[key],base=poseBase[key];
-        if(!node||!base)return;
-        node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')));
-      };
-      seated('leftUpperLeg',-0.92,0.04,-0.08);
-      seated('rightUpperLeg',-0.92,-0.04,0.08);
-      seated('leftLowerLeg',1.22,0,0.02);
-      seated('rightLowerLeg',1.22,0,-0.02);
-      seated('leftFoot',-0.18,0,0);
-      seated('rightFoot',-0.18,0,0);
-      apply('spine',idleX+sway*0.45,0,idleZ+sway*0.3);
-      apply('chest',idleX*0.55+sway*0.55,0,nod*0.35);
-      apply('neck',nod*0.7,Math.sin(bodyClock*0.6)*0.015,0);
-      apply('head',nod,Math.sin(bodyClock*0.72)*0.025,Math.sin(bodyClock*0.8)*0.012);
-      apply('leftShoulder',0,0,active?0.025*Math.sin(phase):idleZ);
-      apply('rightShoulder',0,0,active?-0.025*Math.sin(phase*0.8+1): -idleZ);
-    };
-    applyCrossedPose(0,0);
-
-    frameModel(vrm.scene);
-    setStatus('बैठा हुआ 3D Avatar तैयार है। संदेश लिखकर “पूछें और सुनें” दबाएँ।');
-    animate();
-    window.addEventListener('resize',()=>{
-      if(!renderer||!camera)return;
-      camera.aspect=Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight);
-     
+ 
