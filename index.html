@@ -8,14 +8,14 @@
 <style>
 *{box-sizing:border-box}:root{color-scheme:dark}
 body{margin:0;background:#101116;color:#fff;font-family:system-ui,sans-serif;min-height:100dvh}
-header{padding:14px 16px;font-size:20px;font-weight:750;border-bottom:1px solid #30313a;text-align:center; letter-spacing: 1px;}
+header{padding:14px 16px;font-size:20px;font-weight:750;border-bottom:1px solid #30313a;text-align:center;letter-spacing:1px;}
 main{max-width:680px;margin:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
-#stage{height:clamp(370px,62dvh,620px);position:relative;overflow:hidden;border:1px solid #30313a;border-radius:18px;background:radial-gradient(ellipse at 50% 35%,#292a3b,#12131a 70%)}
+#stage{height:clamp(370px,62dvh,620px);position:relative;overflow:hidden;border:1px solid #30313a;border-radius:18px;background:radial-gradient(ellipse at 50% 40%,#2a2d42,#12131a 75%)}
 #stage canvas{display:block;width:100%;height:100%}
 #status{min-height:22px;color:#d0d0dc;font-size:14px;overflow-wrap:anywhere;text-align:center;}
 textarea{width:100%;min-height:92px;resize:vertical;border:1px solid #393b49;border-radius:12px;padding:12px;color:white;background:#1b1c25;font:inherit}
-.buttons{display:flex;gap:10px}button{flex:1;padding:13px 10px;border:0;border-radius:12px;font:inherit;font-weight:700;cursor:pointer; transition: transform 0.1s;}
-button:active{transform: scale(0.98);}
+.buttons{display:flex;gap:10px}button{flex:1;padding:13px 10px;border:0;border-radius:12px;font:inherit;font-weight:700;cursor:pointer;transition:transform 0.1s;}
+button:active{transform:scale(0.98);}
 #send{background:#7567ff;color:#fff}#stop{background:#30313a;color:#fff}button:disabled{opacity:.6}
 .note{font-size:12px;line-height:1.5;color:#a7a8b3;text-align:center;}
 </style>
@@ -37,7 +37,7 @@ button:active{transform: scale(0.98);}
   <div class="buttons"><button id="send">💬 पूछें और सुनें</button><button id="stop">⏹ रोकें</button></div>
   <div class="buttons"><button id="humOriginal">🎵 मौलिक धुन</button><button id="humRequested">🎶 गुनगुनाएँ</button></div>
   <div id="status" role="status">3D मॉड्यूल शुरू हो रहे हैं…</div>
-  <div class="note">यह 3D VRM बैठने की मुद्रा वाला परीक्षण संस्करण है। Gemini /chat backend और Android Call Flow नहीं बदले गए।</div>
+  <div class="note">यह 3D VRM बैठने की मुद्रा वाला परीक्षण संस्करण है।</div>
 </main>
 <script type="module">
 const statusEl=document.getElementById('status');
@@ -47,7 +47,7 @@ const sendBtn=document.getElementById('send');
 let THREE, GLTFLoader, VRMLoaderPlugin, VRMUtils;
 let vrm=null,renderer=null,scene=null,camera=null,clock=null;
 let utterance=null,speaking=false,mouthPhase=0,rafId=0;
-let gesturePhase=0, gestureBlend=0, applyCrossedPose=()=>{};
+let gesturePhase=0, gestureBlend=0, applySeatedPose=()=>{};
 let behaviorMode='idle', audioCtx=null, melodyTimer=null, melodyNodes=[];
 let applyBodyPose=()=>{};
 let chairGroup=null;
@@ -67,7 +67,7 @@ function stopVoice(){
   }
 }
 function speak(text){
-  if(!('speechSynthesis' in window)){setStatus('इस ब्राउज़र में आवाज़ उपलब्ध नहीं है। Chrome में खोलकर जाँचें।');sendBtn.disabled=false;return;}
+  if(!('speechSynthesis' in window)){setStatus('इस ब्राउज़र में आवाज़ उपलब्ध नहीं है।');sendBtn.disabled=false;return;}
   stopVoice();
   utterance=new SpeechSynthesisUtterance(text);
   utterance.lang='hi-IN'; utterance.rate=.94; utterance.pitch=1.02;
@@ -145,8 +145,7 @@ sendBtn.addEventListener('click',async()=>{
     messageEl.value=answer;
     speak(answer);
   }catch(error){
-    const msg=error?.message||'अज्ञात नेटवर्क त्रुटि';
-    setStatus('कनेक्शन असफल: '+msg);
+    setStatus('कनेक्शन असफल: '+(error?.message||'अज्ञात त्रुटि'));
   }finally{sendBtn.disabled=false;}
 });
 document.getElementById('stop').addEventListener('click',()=>{
@@ -165,7 +164,7 @@ function animate(){
     if (speaking) gesturePhase += delta * 5.0;
     
     try{applyBodyPose(delta, behaviorMode, gesturePhase);}catch(_){}
-    try{applyCrossedPose(gestureBlend, gesturePhase);}catch(_){}
+    try{applySeatedPose(gestureBlend, gesturePhase);}catch(_){}
     
     if(vrm.expressionManager){
       let amount=0;
@@ -177,22 +176,21 @@ function animate(){
 }
 
 function frameModel(model){
+  // पोज़ लगाने से पहले मॉडल का साइज़ और पोज़िशन सेट करें
   model.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(model);
   const size=bounds.getSize(new THREE.Vector3());
-  const center=bounds.getCenter(new THREE.Vector3());
-  if(!Number.isFinite(size.y)||size.y<=0) throw new Error('मॉडल की ऊँचाई पढ़ नहीं पाई।');
   
-  const scale=1.8/size.y;
+  // अवतार का साइज़ सेट करें (लगभग 1.6 मीटर)
+  const scale=1.6/size.y;
   model.scale.setScalar(scale);
-  model.position.x-=center.x*scale;
-  model.position.y-=bounds.min.y*scale;
-  model.position.z-=center.z*scale;
-  model.updateMatrixWorld(true);
   
-  // Better 3/4 camera angle for a more dynamic look
-  camera.position.set(1.2, 1.25, 3.1);
-  camera.lookAt(0, 1.05, 0);
+  // अवतार को सेंटर में और ज़मीन पर खड़ा करें
+  model.position.set(0, 0, 0);
+  
+  // कैमरा सेटअप
+  camera.position.set(0, 1.1, 2.8);
+  camera.lookAt(0, 0.9, 0);
   camera.updateProjectionMatrix();
 }
 
@@ -208,8 +206,7 @@ async function init(){
     
     setStatus('3D renderer शुरू हो रहा है…');
     scene=new THREE.Scene();
-    // Slightly warmer background
-    scene.background=new THREE.Color(0x1a1c29);
+    scene.background=new THREE.Color(0x171823);
     
     camera=new THREE.PerspectiveCamera(30,Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight),.1,100);
     renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
@@ -220,7 +217,7 @@ async function init(){
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     stageEl.appendChild(renderer.domElement);
     
-    // --- IMPROVED LIGHTING ---
+    // --- लाइटिंग ---
     const hemi = new THREE.HemisphereLight(0xffffff, 0x444455, 1.5);
     scene.add(hemi);
 
@@ -235,24 +232,23 @@ async function init(){
     fillLight.position.set(-3, 2, 2);
     scene.add(fillLight);
 
-    // Rim light to separate avatar from background
     const rimLight = new THREE.DirectionalLight(0xffeebb, 2.5);
     rimLight.position.set(-1, 2, -4);
     scene.add(rimLight);
 
-    // --- FLOOR SHADOW ---
-    const shadowPlaneGeo = new THREE.CircleGeometry(1.5, 32);
-    const shadowPlaneMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 });
+    // --- फर्श पर शैडो ---
+    const shadowPlaneGeo = new THREE.CircleGeometry(2.0, 32);
+    const shadowPlaneMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 });
     const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
     shadowPlane.rotation.x = -Math.PI / 2;
     shadowPlane.position.y = 0.01;
     scene.add(shadowPlane);
 
-    // --- IMPROVED CHAIR ---
+    // --- कुर्सी ---
     chairGroup = new THREE.Group();
-    const chairMat = new THREE.MeshStandardMaterial({color:0xe0d5c1, roughness:.9});
-    const darkMat = new THREE.MeshStandardMaterial({color:0x4a3e35, roughness:.8});
-    const cushionMat = new THREE.MeshStandardMaterial({color:0xf0e6d2, roughness:1});
+    const chairMat = new THREE.MeshStandardMaterial({color:0x8a8278, roughness:.9});
+    const darkMat = new THREE.MeshStandardMaterial({color:0x3a3530, roughness:.8});
+    const cushionMat = new THREE.MeshStandardMaterial({color:0x5a5650, roughness:1});
     
     const makeChairPart=(w,h,d,x,y,z,mat)=>{
       const geo=new THREE.BoxGeometry(w,h,d);
@@ -263,20 +259,18 @@ async function init(){
       chairGroup.add(mesh); return mesh;
     };
     
-    // Chair structure
-    makeChairPart(1.15,.15,.85,0,.55,-.20,chairMat); // Seat
-    makeChairPart(1.10,.95,.15,0,1.05,-.60,chairMat); // Backrest
-    makeChairPart(.10,.85,.15,-.55,1.00,-.50,darkMat); // Left back leg
-    makeChairPart(.10,.85,.15,.55,1.00,-.50,darkMat); // Right back leg
-    // Front legs
-    for(const x of [-.48,.48]) makeChairPart(.08,.55,.08,x,.27,.05,darkMat);
-    // Arm rests
-    makeChairPart(.18,.08,.65,-.62,.75,-.15,chairMat);
-    makeChairPart(.18,.08,.65,.62,.75,-.15,chairMat);
-    // Cushions for comfort look
-    makeChairPart(1.05,.10,.80,0,.63,-.20,cushionMat); 
-    makeChairPart(1.0,.8,.10,0,1.05,-.52,cushionMat);
+    // कुर्सी को छोटा और पीछे किया गया है ताकि अवतार ठीक से बैठ सके
+    makeChairPart(0.9,.1,.7,0,.45,-.20,chairMat); // सीट
+    makeChairPart(0.85,.8,.1,0,0.85,-.55,chairMat); // बैकरेस्ट
+    makeChairPart(.08,.45,.08,-.42,0.22,0.05,darkMat); // सामने के पैर
+    makeChairPart(.08,.45,.08,.42,0.22,0.05,darkMat);
+    makeChairPart(.08,.85,.08,-.42,0.42,-.5,darkMat); // पीछे के पैर
+    makeChairPart(.08,.85,.08,.42,0.42,-.5,darkMat);
+    // कुशन
+    makeChairPart(0.85,.08,.65,0,.50,-.20,cushionMat); 
+    makeChairPart(0.8,.7,.08,0,0.85,-.50,cushionMat);
 
+    chairGroup.position.set(0, 0, -0.1);
     scene.add(chairGroup);
     
     clock=new THREE.Clock();
@@ -290,7 +284,6 @@ async function init(){
     if(VRMUtils && typeof VRMUtils.rotateVRM0==='function') VRMUtils.rotateVRM0(vrm);
     scene.add(vrm.scene);
 
-    // Shadow casting for the avatar
     vrm.scene.traverse((node) => {
       if (node.isMesh) {
         node.castShadow = true;
@@ -338,8 +331,8 @@ async function init(){
       boneNode.updateMatrixWorld(true);
     };
 
-    // --- IMPROVED NATURAL ARM POSE (Hands on lap) ---
-    applyCrossedPose = (blend = 0, phase = 0) => {
+    // --- हाथों को गोद (Lap) में रखने का लॉजिक ---
+    applySeatedPose = (blend = 0, phase = 0) => {
       const active=behaviorMode==='talk'||behaviorMode==='hum';
       
       for(const key of ['leftUpper','rightUpper','leftLower','rightLower','leftHand','rightHand']){
@@ -353,46 +346,42 @@ async function init(){
       
       const spinePos = worldPos(spineNode);
       
-      // Target lap position: slightly down and forward from spine
-      const front = 0.30; 
-      const down = -0.20;
+      // हाथों को नीचे (गोद में) टारगेट करें
+      const front = 0.28; 
+      const down = -0.25; 
+      const motion = active ? Math.sin(phase) * 0.015 : 0;
       
-      // Add subtle movement when speaking (gesturing slightly)
-      const motion = active ? Math.sin(phase) * 0.02 : 0;
-      
-      const leftTarget = spinePos.clone().add(new THREE.Vector3(-0.12 + motion, down, front));
-      const rightTarget = spinePos.clone().add(new THREE.Vector3(0.12 + motion, down, front));
+      const leftTarget = spinePos.clone().add(new THREE.Vector3(-0.15 + motion, down, front));
+      const rightTarget = spinePos.clone().add(new THREE.Vector3(0.15 + motion, down, front));
       
       const leftShoulder=poseBones.leftShoulder||poseBones.leftUpper;
       const rightShoulder=poseBones.rightShoulder||poseBones.rightUpper;
       
-      // Elbows slightly outward
-      const leftElbow=leftShoulder?worldPos(leftShoulder).add(new THREE.Vector3(-0.18,-0.15,0.05)):null;
-      const rightElbow=rightShoulder?worldPos(rightShoulder).add(new THREE.Vector3(0.18,-0.15,0.05)):null;
+      // कोहनियों को थोड़ा बाहर की तरफ
+      const leftElbow=leftShoulder?worldPos(leftShoulder).add(new THREE.Vector3(-0.15,-0.15,0.05)):null;
+      const rightElbow=rightShoulder?worldPos(rightShoulder).add(new THREE.Vector3(0.15,-0.15,0.05)):null;
       
       aimSegment(poseBones.leftUpper,poseBones.leftLower,leftElbow);
       aimSegment(poseBones.leftLower,poseBones.leftHand,leftTarget);
       aimSegment(poseBones.rightUpper,poseBones.rightLower,rightElbow);
       aimSegment(poseBones.rightLower,poseBones.rightHand,rightTarget);
       
-      // Wrist adjustment
       for(const [key,sign] of [['leftHand',1],['rightHand',-1]]){
         const node=armNodes[key],base=poseBase[key];
         if(node&&base){
           const wiggle=active?Math.sin(phase+(sign>0?0:1))*0.015:0;
           node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(
-            new THREE.Euler(0.1+wiggle, 0, sign*0.1,'XYZ')));
+            new THREE.Euler(0.2+wiggle, 0, sign*0.05,'XYZ')));
         }
       }
       vrm.scene.updateMatrixWorld(true);
     };
 
-    // --- IMPROVED IDLE & SEATED POSE ---
+    // --- बैठने का पोज़ और ब्रीदिंग एनिमेशन ---
     let bodyClock=0;
     applyBodyPose = (delta, mode, phase) => {
       bodyClock += delta;
       
-      // Smoother breathing
       const breath = Math.sin(bodyClock * 1.5);
       const idleX = breath * 0.015;
       const idleZ = Math.sin(bodyClock * 0.8) * 0.01;
@@ -409,35 +398,35 @@ async function init(){
         node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')));
       };
       
-      // --- LEGS (SEATED) ---
-      // Adjust these to match the new chair height
-      apply('leftUpperLeg', -1.45, 0.05, -0.1); 
-      apply('rightUpperLeg', -1.45, -0.05, 0.1);
-      apply('leftLowerLeg', 1.4, 0, 0.05);
-      apply('rightLowerLeg', 1.4, 0, -0.05);
-      apply('leftFoot', -0.15, 0, 0);
-      apply('rightFoot', -0.15, 0, 0);
+      // --- पैरों का सही पोज़ (अब उल्टा नहीं होगा) ---
+      // पैरों को आगे की तरफ (Positive X) मोड़ना है
+      apply('leftUpperLeg', 1.45, 0.05, -0.1); 
+      apply('rightUpperLeg', 1.45, -0.05, 0.1);
+      apply('leftLowerLeg', -1.4, 0, 0.05);
+      apply('rightLowerLeg', -1.4, 0, -0.05);
+      apply('leftFoot', 0.1, 0, 0);
+      apply('rightFoot', 0.1, 0, 0);
 
-      // --- TORSO & HEAD ---
+      // --- शरीर और सिर ---
       apply('hips', 0, idleX*0.35, idleZ*0.25);
       apply('spine', idleX+sway*0.4, 0, idleZ+sway*0.3);
       apply('chest', idleX*0.5+sway*0.5, 0, nod*0.3);
       apply('neck', nod*0.5, Math.sin(bodyClock*0.6)*0.015, 0);
       
-      // Head gets natural idle movement
       apply('head', nod + Math.sin(bodyClock*0.7)*0.01, 
                      Math.sin(bodyClock*0.72)*0.03, 
                      Math.sin(bodyClock*0.8)*0.015);
                      
-      // Shoulders
       apply('leftShoulder',0,0,active?0.02*Math.sin(phase):idleZ);
       apply('rightShoulder',0,0,active?-0.02*Math.sin(phase*0.8+1): -idleZ);
     };
     
-    applyCrossedPose(0,0);
+    // सबसे पहले मॉडल को फ्रेम करें, फिर पोज़ लगाएं
     frameModel(vrm.scene);
+    applySeatedPose(0,0);
+    applyBodyPose(0, 'idle', 0);
     
-    setStatus('बैठा हुआ 3D Avatar तैयार है। संदेश लिखकर “पूछें और सुनें” दबाएँ।');
+    setStatus('बैठा हुआ 3D Avatar तैयार है।');
     animate();
     
     window.addEventListener('resize',()=>{
