@@ -51,9 +51,8 @@ const stageEl=document.getElementById('stage');
 const loadingEl=document.getElementById('loading');
 const loadingTextEl=document.getElementById('loadingText');
 let loadingNoticeTimer=null;
-let loadingWatchdogTimer=null;
 function showLoading(message){if(loadingTextEl)loadingTextEl.textContent=message;if(loadingEl)loadingEl.hidden=false;}
-function hideLoading(){if(loadingNoticeTimer){clearTimeout(loadingNoticeTimer);loadingNoticeTimer=null;}if(loadingWatchdogTimer){clearTimeout(loadingWatchdogTimer);loadingWatchdogTimer=null;}if(loadingEl)loadingEl.hidden=true;}
+function hideLoading(){if(loadingNoticeTimer){clearTimeout(loadingNoticeTimer);loadingNoticeTimer=null;}if(loadingEl)loadingEl.hidden=true;}
 const messageEl=document.getElementById('message');
 const sendBtn=document.getElementById('send');
 let THREE, GLTFLoader, VRMLoaderPlugin, VRMUtils;
@@ -77,8 +76,7 @@ function stopVoice(){
       try{vrm.expressionManager.setValue(name,0)}catch(_){}
     }
   }
-}
-function speak(text){
+}function speak(text){
   if(!('speechSynthesis' in window)){setStatus('इस ब्राउज़र में आवाज़ उपलब्ध नहीं है। Chrome में खोलकर जाँचें।');sendBtn.disabled=false;return;}
   stopVoice();
   utterance=new SpeechSynthesisUtterance(text);
@@ -94,7 +92,8 @@ async function askBackend(userText){
   const timeoutId = setTimeout(() => controller.abort(), 25000);
   let response;
   try {
-    response = await fetch('https://zoya-backend-ctr8.onrender.com/chat',{method:'POST',
+    response = await fetch('https://zoya-backend-ctr8.onrender.com/chat',{
+      method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({message:userText}),
       signal: controller.signal
@@ -211,8 +210,9 @@ function frameModel(model){
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
   // Seated portrait framing: include head, torso, lap and chair seat.
-  camera.position.set(0,1.12,2.85);
-  camera.lookAt(0,0.98,0);
+  camera.fov = 36;
+  camera.position.set(0,1.38,3.45);
+  camera.lookAt(0,1.12,0);
   camera.updateProjectionMatrix();
 }
 async function init(){
@@ -222,28 +222,16 @@ async function init(){
   // 5 सेकंड के बाद उपयोगकर्ता को स्पष्ट स्थिति दिखाएँ; वास्तविक लोडिंग जारी रहती है।
   loadingNoticeTimer=setTimeout(()=>{
     if(!vrm){
-      showLoading('अवतार डाउनलोड हो रहा है…');
-      setStatus('3D लोडिंग जारी है… CDN या VRM फ़ाइल धीमे लोड हो सकती है।');
+      showLoading('अवतार तैयार हो रहा है… पहली बार डाउनलोड में 5 सेकंड से अधिक लग सकते हैं। कृपया पेज खुला रखें।');
+      setStatus('3D लोडिंग जारी है… धीमे नेटवर्क पर पहली बार थोड़ा अधिक समय लग सकता है।');
     }
   },5000);
-  // Fail visibly instead of spinning forever if a CDN/model request hangs.
-  loadingWatchdogTimer=setTimeout(()=>{
-    if(!vrm){
-      showLoading('लोडिंग में 30 सेकंड से अधिक लग गए। इंटरनेट जाँचकर पेज रीफ़्रेश करें।');
-      const spinner=loadingEl?.querySelector('.spinner'); if(spinner)spinner.hidden=true;
-      setStatus('लोडिंग टाइमआउट: CDN libraries या ./models/sample_a.vrm का अनुरोध पूरा नहीं हुआ।');
-    }
-  },30000);
   try{
     // Import errors are caught here, instead of leaving the page stuck at the initial status.
-    const importsPromise=Promise.all([
+    const imports=await Promise.all([
       import('three'),
       import('three/addons/loaders/GLTFLoader.js'),
       import('@pixiv/three-vrm')
-    ]);
-    const imports=await Promise.race([
-      importsPromise,
-      new Promise((_,reject)=>setTimeout(()=>reject(new Error('3D libraries 20 सेकंड में डाउनलोड नहीं हुईं। इंटरनेट/CDN जाँचें।')),20000))
     ]);
     [THREE,{GLTFLoader},{VRMLoaderPlugin,VRMUtils}]=imports;
     setStatus('3D renderer शुरू हो रहा है…');
@@ -276,15 +264,16 @@ async function init(){
     // Arm rests
     makeChairPart(.16,.10,.56,-.61,.82,-.20,chairMat);
     makeChairPart(.16,.10,.56,.61,.82,-.20,chairMat);
+    // Reduce the chair relative to the avatar and move it behind the seated body.
+    // The previous chair was oversized and its seat visually cut across the avatar.
+    chairGroup.scale.setScalar(0.68);
+    chairGroup.position.set(0,0.03,-0.48);
     scene.add(chairGroup);
     clock=new THREE.Clock();
     setStatus('models/sample_a.vrm डाउनलोड हो रहा है…');
     const loader=new GLTFLoader();
     loader.register(parser=>new VRMLoaderPlugin(parser));
-    const gltf=await Promise.race([
-      loader.loadAsync('./models/sample_a.vrm'),
-      new Promise((_,reject)=>setTimeout(()=>reject(new Error('./models/sample_a.vrm 25 सेकंड में लोड नहीं हुई। GitHub में models/sample_a.vrm की मौजूदगी और filename का case जाँचें।')),25000))
-    ]);
+    const gltf=await loader.loadAsync('./models/sample_a.vrm');
     vrm=gltf.userData.vrm;
     if(!vrm)throw new Error('फ़ाइल से VRM डेटा नहीं मिला।');
     // Compatibility guard in case the utility is absent in a loaded package build.
@@ -308,7 +297,9 @@ async function init(){
     const poseBase = {};
     for (const [key, node] of Object.entries(poseBones)) {
       if (node) poseBase[key] = node.quaternion.clone();
-}// Chest pose via world-space two-segment IK rather than guessed Euler angles.
+    }
+
+    // Chest pose via world-space two-segment IK rather than guessed Euler angles.
     // This aims the actual upper-arm and forearm segments toward chest targets.
     const armNodes = {
       leftUpper: poseBones.leftUpper, rightUpper: poseBones.rightUpper,
@@ -357,8 +348,7 @@ async function init(){
       const rightShoulder=poseBones.rightShoulder||poseBones.rightUpper;
       const leftElbow=leftShoulder?worldPos(leftShoulder).add(new THREE.Vector3(-0.15,-0.075,0.12)):null;
       const rightElbow=rightShoulder?worldPos(rightShoulder).add(new THREE.Vector3(0.15,-0.075,0.12)):null;
-      // Aim upper arm toward a gently outward elbow, then forearm toward the hand target.
-      aimSegment(poseBones.leftUpper,poseBones.leftLower,leftElbow);
+      // Aim upper arm toward a gently outward elbow, then forearm toward the hand targetaimSegment(poseBones.leftUpper,poseBones.leftLower,leftElbow);
       aimSegment(poseBones.leftLower,poseBones.leftHand,leftTarget);
       aimSegment(poseBones.rightUpper,poseBones.rightLower,rightElbow);
       aimSegment(poseBones.rightLower,poseBones.rightHand,rightTarget);
@@ -422,6 +412,7 @@ async function init(){
     window.addEventListener('resize',()=>{
       if(!renderer||!camera)return;
       camera.aspect=Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight);
+      camera.fov=36;
       camera.updateProjectionMatrix();
       renderer.setSize(stageEl.clientWidth,stageEl.clientHeight);
     });
@@ -438,4 +429,3 @@ init();
 </script>
 </body>
 </html>
-
