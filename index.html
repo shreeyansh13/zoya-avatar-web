@@ -9,8 +9,8 @@
 <title>Zoya AI — 3D Avatar</title>
 <style>
 *{box-sizing:border-box}:root{color-scheme:dark}
-body{margin:0;padding-top:env(safe-area-inset-top);background:#101116;color:#fff;font-family:system-ui,sans-serif;min-height:100dvh}
-header{padding:14px 16px;font-size:clamp(17px,4.5vw,20px);line-height:1.25;font-weight:750;border-bottom:1px solid #30313a;overflow-wrap:anywhere}
+body{margin:0;background:#101116;color:#fff;font-family:system-ui,sans-serif;min-height:100dvh}
+header{padding:14px 16px;font-size:20px;font-weight:750;border-bottom:1px solid #30313a}
 main{max-width:680px;margin:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
 #stage{height:clamp(370px,62dvh,620px);position:relative;overflow:hidden;border:1px solid #30313a;border-radius:18px;background:radial-gradient(ellipse at 50% 35%,#292a3b,#12131a 70%)}
 #stage canvas{display:block;width:100%;height:100%}
@@ -43,47 +43,17 @@ textarea{width:100%;min-height:92px;resize:vertical;border:1px solid #393b49;bor
   <div class="buttons"><button id="send">💬 पूछें और सुनें</button><button id="stop">⏹ रोकें</button></div>
   <div class="buttons"><button id="humOriginal">🎵 मौलिक धुन</button><button id="humRequested">🎶 गुनगुनाएँ</button></div>
   <div id="status" role="status">3D मॉड्यूल शुरू हो रहे हैं…</div>
-  <div class="note">यह 3D VRM बैठने की मुद्रा वाला परीक्षण संस्करण है। Gemini /chat backend और Android Call Flow नहीं बदले गए। बातचीत में browser speech synthesis और गुनगुनाने में locally generated melody tones उपयोग होते हैं; यह अभी मानव-जैसी humming voice या copyrighted song recording नहीं है।</div>
+  <div class="note">यह 3D VRM अवतार का क्लोज़-पोर्ट्रेट परीक्षण संस्करण है। Gemini /chat backend और Android Call Flow नहीं बदले गए। बातचीत में browser speech synthesis और गुनगुनाने में locally generated melody tones उपयोग होते हैं; यह अभी मानव-जैसी humming voice या copyrighted song recording नहीं है।</div>
 </main>
-<script>
-// Classic-script watchdog: remains active even if the module script/import map fails.
-window.addEventListener('error', function (event) {
-  const status = document.getElementById('status');
-  const loadingText = document.getElementById('loadingText');
-  if (status && !document.querySelector('#stage canvas')) {
-    status.textContent = '3D JavaScript त्रुटि: ' + (event.message || 'module शुरू नहीं हुआ') + '। पेज रीफ्रेश करें और Chrome में खोलकर जाँचें।';
-  }
-  if (loadingText && !document.querySelector('#stage canvas')) {
-    loadingText.textContent = '3D मॉड्यूल शुरू नहीं हो पाया। इंटरनेट/CDN जाँचें या Chrome में खोलें।';
-  }
-});
-window.addEventListener('unhandledrejection', function (event) {
-  const status = document.getElementById('status');
-  if (status && !document.querySelector('#stage canvas')) {
-    const reason = event.reason && event.reason.message ? event.reason.message : String(event.reason || 'अज्ञात त्रुटि');
-    status.textContent = '3D मॉड्यूल त्रुटि: ' + reason;
-  }
-});
-window.setTimeout(function () {
-  if (!document.querySelector('#stage canvas')) {
-    const status = document.getElementById('status');
-    const loadingText = document.getElementById('loadingText');
-    if (status) status.textContent = 'Avatar 12 सेकंड में शुरू नहीं हुआ। CDN या VRM फ़ाइल की loading अटकी हो सकती है। Chrome में खोलें; फिर भी समस्या हो तो इस status का screenshot भेजें।';
-    if (loadingText) loadingText.textContent = 'अवतार शुरू होने में देरी है — इंटरनेट/CDN जाँचें और पेज रीफ्रेश करें।';
-  }
-}, 12000);
-</script>
 <script type="module">
 const statusEl=document.getElementById('status');
 const stageEl=document.getElementById('stage');
 const loadingEl=document.getElementById('loading');
 const loadingTextEl=document.getElementById('loadingText');
 let loadingNoticeTimer=null;
-let loadComplete=false;
-const withDeadline=(promise,ms,label)=>Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(new Error(label+' '+Math.round(ms/1000)+' सेकंड में पूरा नहीं हुआ')),ms))]);
-function loadFailure(message){loadComplete=true;hideLoading();showLoading('❌ '+message);const spinner=loadingEl?.querySelector('.spinner');if(spinner)spinner.hidden=true;setStatus('लोडिंग त्रुटि: '+message);}
+let loadingWatchdogTimer=null;
 function showLoading(message){if(loadingTextEl)loadingTextEl.textContent=message;if(loadingEl)loadingEl.hidden=false;}
-function hideLoading(){if(loadingNoticeTimer){clearTimeout(loadingNoticeTimer);loadingNoticeTimer=null;}if(loadingEl)loadingEl.hidden=true;}
+function hideLoading(){if(loadingNoticeTimer){clearTimeout(loadingNoticeTimer);loadingNoticeTimer=null;}if(loadingWatchdogTimer){clearTimeout(loadingWatchdogTimer);loadingWatchdogTimer=null;}if(loadingEl)loadingEl.hidden=true;}
 const messageEl=document.getElementById('message');
 const sendBtn=document.getElementById('send');
 let THREE, GLTFLoader, VRMLoaderPlugin, VRMUtils;
@@ -226,7 +196,8 @@ function animate(){
       try{vrm.expressionManager.setValue('aa',amount);}catch(_){}
     }
   }
-  renderer.render(scene,camera);}
+  renderer.render(scene,camera);
+}
 function frameModel(model){
   model.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(model);
@@ -241,8 +212,7 @@ function frameModel(model){
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
   // Seated portrait framing: include head, torso, lap and chair seat.
-  camera.fov = 34;
-  camera.position.set(0,1.36,3.65);
+  camera.position.set(0,1.22,1.95);
   camera.lookAt(0,1.08,0);
   camera.updateProjectionMatrix();
 }
@@ -252,19 +222,30 @@ async function init(){
   setStatus('3D libraries डाउनलोड हो रही हैं…');
   // 5 सेकंड के बाद उपयोगकर्ता को स्पष्ट स्थिति दिखाएँ; वास्तविक लोडिंग जारी रहती है।
   loadingNoticeTimer=setTimeout(()=>{
-    if(!vrm && !loadComplete){
-      showLoading('अवतार तैयार हो रहा है… पहली बार डाउनलोड में 5 सेकंड से अधिक लग सकते हैं। कृपया पेज खुला रखें।');
-      setStatus('3D लोडिंग जारी है… धीमे नेटवर्क पर पहली बार थोड़ा अधिक समय लग सकता है।');
+    if(!vrm){
+      showLoading('अवतार डाउनलोड हो रहा है…');
+      setStatus('3D लोडिंग जारी है… CDN या VRM फ़ाइल धीमे लोड हो सकती है।');
     }
   },5000);
-  setTimeout(()=>{if(!loadComplete){loadFailure('35 सेकंड बाद भी मॉडल तैयार नहीं हुआ। Chrome में खोलें और models/sample_a.vrm URL जाँचें।');}},35000);
+  // Fail visibly instead of spinning forever if a CDN/model request hangs.
+  loadingWatchdogTimer=setTimeout(()=>{
+    if(!vrm){
+      showLoading('लोडिंग में 30 सेकंड से अधिक लग गए। इंटरनेट जाँचकर पेज रीफ़्रेश करें।');
+      const spinner=loadingEl?.querySelector('.spinner'); if(spinner)spinner.hidden=true;
+      setStatus('लोडिंग टाइमआउट: CDN libraries या ./models/sample_a.vrm का अनुरोध पूरा नहीं हुआ।');
+    }
+  },30000);
   try{
     // Import errors are caught here, instead of leaving the page stuck at the initial status.
-    const imports=await withDeadline(Promise.all([
+    const importsPromise=Promise.all([
       import('three'),
       import('three/addons/loaders/GLTFLoader.js'),
       import('@pixiv/three-vrm')
-    ]),18000,'3D CDN लाइब्रेरी');
+    ]);
+    const imports=await Promise.race([
+      importsPromise,
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error('3D libraries 20 सेकंड में डाउनलोड नहीं हुईं। इंटरनेट/CDN जाँचें।')),20000))
+    ]);
     [THREE,{GLTFLoader},{VRMLoaderPlugin,VRMUtils}]=imports;
     setStatus('3D renderer शुरू हो रहा है…');
     scene=new THREE.Scene();
@@ -278,45 +259,16 @@ async function init(){
     scene.add(new THREE.HemisphereLight(0xffffff,0x62627b,2));
     const key=new THREE.DirectionalLight(0xffffff,2);key.position.set(1,3,4);scene.add(key);
     const fill=new THREE.DirectionalLight(0xa9b8ff,.7);fill.position.set(-3,2,1);scene.add(fill);
-    // Simple 3D chair placed behind Zoya; no external image assets required.
-    chairGroup = new THREE.Group();
-    const chairMat = new THREE.MeshStandardMaterial({color:0xd9c8ad, roughness:.82});
-    const darkMat = new THREE.MeshStandardMaterial({color:0x47382f, roughness:.8});
-    const makeChairPart=(w,h,d,x,y,z,mat,round=0)=>{
-      const geo=new THREE.BoxGeometry(w,h,d);
-      const mesh=new THREE.Mesh(geo,mat); mesh.position.set(x,y,z); chairGroup.add(mesh); return mesh;
-    };
-    // Seat and back are intentionally behind the avatar so they don't cover the model.
-    makeChairPart(1.12,.16,.78,0,.58,-.24,chairMat);
-    makeChairPart(1.08,.92,.14,0,1.02,-.57,chairMat);
-    makeChairPart(.10,.82,.16,-.54,.99,-.48,darkMat);
-    makeChairPart(.10,.82,.16,.54,.99,-.48,darkMat);
-    // Front legs and rear support.
-    for(const x of [-.46,.46]) for(const z of [-.48,.03]) makeChairPart(.075,.58,.075,x,.29,z,darkMat);
-    // Arm rests
-    makeChairPart(.16,.10,.56,-.61,.82,-.20,chairMat);
-    makeChairPart(.16,.10,.56,.61,.82,-.20,chairMat);
-    // Reduce the chair relative to the avatar and move it behind the seated body.
-    // The previous chair was oversized and its seat visually cut across the avatar.
-    chairGroup.scale.setScalar(0.48);
-    chairGroup.position.set(0,0.02,-0.72);
-    scene.add(chairGroup);
+    // Chair removed: keep the avatar unobstructed and use a close portrait framing.
+    chairGroup = null;
     clock=new THREE.Clock();
     setStatus('models/sample_a.vrm डाउनलोड हो रहा है…');
     const loader=new GLTFLoader();
     loader.register(parser=>new VRMLoaderPlugin(parser));
-    const modelUrl='./models/sample_a.vrm';
-    const modelController=new AbortController();
-    const modelTimer=setTimeout(()=>modelController.abort(),20000);
-    let modelResponse;
-    try { modelResponse=await fetch(modelUrl,{signal:modelController.signal,cache:'no-store'}); }
-    catch(err){throw new Error('VRM मॉडल डाउनलोड नहीं हुआ: '+(err?.name==='AbortError'?'20 सेकंड timeout':err?.message));}
-    finally{clearTimeout(modelTimer);}
-    if(!modelResponse.ok)throw new Error('models/sample_a.vrm HTTP '+modelResponse.status+' — GitHub में models फ़ोल्डर और फ़ाइल जाँचें');
-    const modelBytes=await withDeadline(modelResponse.arrayBuffer(),12000,'VRM डेटा');
-    if(modelBytes.byteLength<1000)throw new Error('VRM फ़ाइल बहुत छोटी या गलत है ('+modelBytes.byteLength+' bytes)');
-    setStatus('VRM डाउनलोड हुआ ('+(modelBytes.byteLength/1048576).toFixed(1)+' MB), 3D मॉडल तैयार हो रहा है…');
-    const gltf=await withDeadline(loader.parseAsync(modelBytes,new URL('./models/',location.href).href),20000,'VRM parse');
+    const gltf=await Promise.race([
+      loader.loadAsync('./models/sample_a.vrm'),
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error('./models/sample_a.vrm 25 सेकंड में लोड नहीं हुई। GitHub में models/sample_a.vrm की मौजूदगी और filename का case जाँचें।')),25000))
+    ]);
     vrm=gltf.userData.vrm;
     if(!vrm)throw new Error('फ़ाइल से VRM डेटा नहीं मिला।');
     // Compatibility guard in case the utility is absent in a loaded package build.
@@ -361,8 +313,7 @@ async function init(){
       const delta=new THREE.Quaternion().setFromUnitVectors(currentDir,targetDir);
       const currentWorld=boneNode.getWorldQuaternion(new THREE.Quaternion());
       const desiredWorld=delta.multiply(currentWorld);
-      const parentWorld=boneNode.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
-      boneNode.quaternion.copy(parentWorld.multiply(desiredWorld));
+      const parentWorld=boneNode.parent.getWorldQuaternion(new THREE.Quaternion()).invert();boneNode.quaternion.copy(parentWorld.multiply(desiredWorld));
       boneNode.updateMatrixWorld(true);
     };
     const restAngles = {
@@ -449,7 +400,6 @@ async function init(){
     applyCrossedPose(0,0);
 
     frameModel(vrm.scene);
-    loadComplete=true;
     hideLoading();
     const loadSeconds=((performance.now()-initStartedAt)/1000).toFixed(1);
     setStatus(`बैठा हुआ 3D Avatar तैयार है (${loadSeconds} सेकंड)। संदेश लिखकर “पूछें और सुनें” दबाएँ।`);
@@ -457,17 +407,15 @@ async function init(){
     window.addEventListener('resize',()=>{
       if(!renderer||!camera)return;
       camera.aspect=Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight);
-      camera.fov=34;
       camera.updateProjectionMatrix();
       renderer.setSize(stageEl.clientWidth,stageEl.clientHeight);
     });
   }catch(error){
-    loadComplete=true;
     hideLoading();
     console.error('Zoya avatar initialization failed:',error);
     const message=error?.message||String(error);
     setStatus('लोडिंग त्रुटि: '+message+' (जाँचें: इंटरनेट/CDN, WebGL, और models/sample_a.vrm)');
-    showLoading('❌ 3D Avatar लोड नहीं हुआ: '+message+'। models/sample_a.vrm और CDN जाँचें।');
+    showLoading('3D Avatar लोड नहीं हुआ। '+message+' इंटरनेट और models/sample_a.vrm की उपलब्धता जाँचें, फिर पेज रीफ्रेश करें।');
     const spinner=loadingEl?.querySelector('.spinner'); if(spinner)spinner.hidden=true;
   }
 }
