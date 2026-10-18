@@ -236,8 +236,8 @@ function frameModel(model){
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
   // Seated portrait framing: include head, torso, lap and chair seat.
-  camera.position.set(0,1.42,3.55);
-  camera.lookAt(0,1.34,0);
+  camera.position.set(0,1.42,3.4);
+  camera.lookAt(0,1.85,0);
   camera.updateProjectionMatrix();
 }
 async function init(){
