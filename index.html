@@ -211,9 +211,9 @@ function frameModel(model){
   model.position.y-=bounds.min.y*scale;
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
-  // Seated portrait framing: include head, torso, lap and chair seat.
-  camera.position.set(0,1.22,1.95);
-  camera.lookAt(0,1.08,0);
+  // Reframed portrait: keep the full head visible and move the avatar slightly lower in the stage.
+  camera.position.set(0,1.30,2.45);
+  camera.lookAt(0,1.34,0);
   camera.updateProjectionMatrix();
 }
 async function init(){
@@ -292,9 +292,7 @@ async function init(){
     const poseBase = {};
     for (const [key, node] of Object.entries(poseBones)) {
       if (node) poseBase[key] = node.quaternion.clone();
-    }
-
-    // Chest pose via world-space two-segment IK rather than guessed Euler angles.
+    }// Chest pose via world-space two-segment IK rather than guessed Euler angles.
     // This aims the actual upper-arm and forearm segments toward chest targets.
     const armNodes = {
       leftUpper: poseBones.leftUpper, rightUpper: poseBones.rightUpper,
@@ -313,7 +311,8 @@ async function init(){
       const delta=new THREE.Quaternion().setFromUnitVectors(currentDir,targetDir);
       const currentWorld=boneNode.getWorldQuaternion(new THREE.Quaternion());
       const desiredWorld=delta.multiply(currentWorld);
-      const parentWorld=boneNode.parent.getWorldQuaternion(new THREE.Quaternion()).invert();boneNode.quaternion.copy(parentWorld.multiply(desiredWorld));
+      const parentWorld=boneNode.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+      boneNode.quaternion.copy(parentWorld.multiply(desiredWorld));
       boneNode.updateMatrixWorld(true);
     };
     const restAngles = {
