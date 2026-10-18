@@ -2,239 +2,204 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zoya AI - 3D Avatar (Upgraded)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zoya AI - 3D Avatar</title>
     <style>
-        /* --- CSS स्टाइलिंग (UI डिज़ाइन) --- */
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        body {
-            background-color: #1a1a2e;
-            color: white;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* हेडर */
-        .header {
-            padding: 15px;
-            font-size: 18px;
-            font-weight: bold;
-            text-align: center;
-            color: #e0e0e0;
-            background: rgba(0, 0, 0, 0.3);
-        }
-
-        /* 3D मॉडल के लिए जगह */
-        #canvas-container {
-            flex: 1;
-            position: relative;
-            width: 100%;
-        }
-
-        /* नीचे का UI (चैट और बटन) */
-        .ui-container {
-            padding: 15px;
-            background: #1e1e2f;
-            border-top-left-radius: 20px;
-            border-top-right-radius: 20px;
-            box-shadow: 0 -5px 15px rgba(0,0,0,0.5);
-            z-index: 10;
-        }
-
-        .chat-box {
-            background: #2b2b3d;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 15px;
-            font-size: 16px;
-            color: #f1f1f1;
-            text-align: center;
-        }
-
-        .btn-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        button {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-
-        .btn-primary {
-            background-color: #7b2cbf; /* पर्पल */
-            color: white;
-        }
+        body { margin: 0; padding: 0; overflow: hidden; background: radial-gradient(circle at center, #1a1a2e 0%, #0f0f16 100%); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
-        .btn-primary:hover { background-color: #9d4edd; }
-
-        .btn-secondary {
-            background-color: #33334d; /* डार्क */
-            color: white;
-        }
-        .btn-secondary:hover { background-color: #44445c; }
-
-        .btn-music {
-            background-color: #2b2b3d;
-            color: #a0a0a0;
-            font-size: 14px;
-        }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        
+        .ui-container { position: absolute; bottom: 15px; left: 0; width: 100%; padding: 0 15px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; z-index: 10; }
+        .chat-box { background: rgba(35, 35, 48, 0.85); backdrop-filter: blur(5px); border: 1px solid #3a3a4a; color: #ffffff; padding: 15px; border-radius: 12px; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .button-row { display: flex; gap: 10px; }
+        .btn { flex: 1; padding: 14px 10px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: opacity 0.2s; }
+        .btn:active { opacity: 0.7; }
+        .btn-primary { background-color: #7b61ff; color: white; }
+        .btn-secondary { background-color: #2a2a35; color: white; border: 1px solid #3a3a4a; }
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 18px; z-index: 5; }
     </style>
 </head>
 <body>
-
-    <!-- हेडर -->
-    <div class="header">Zoya AI - 3D Avatar</div>
-
-    <!-- 3D मॉडल यहाँ दिखेगा -->
+    <div id="loading">अवतार लोड हो रहा है...</div>
     <div id="canvas-container"></div>
 
-    <!-- नीचे का UI -->
     <div class="ui-container">
-        <div class="chat-box">
-            नमस्ते ज़ोया, आज की तारीख क्या है?
+        <div class="chat-box">नमस्ते ज़ोया, आज की तारीख क्या है?</div>
+        <div class="button-row">
+            <button class="btn btn-primary">💬 पूछें और सुनें</button>
+            <button class="btn btn-secondary">⏹️ रोकें</button>
         </div>
-        
-        <div class="btn-row">
-            <button class="btn-primary" onclick="speak()">💬 पूछें और सुनें</button>
-            <button class="btn-secondary" onclick="stop()">⏹️ रोकें</button>
-        </div>
-        
-        <div class="btn-row">
-            <button class="btn-music">🎵 मौलिक धुन</button>
-            <button class="btn-music">🎶 गुनगुनाएँ</button>
+        <div class="button-row">
+            <button class="btn btn-secondary">🎵 मौलिक धुन</button>
+            <button class="btn btn-secondary">🎶 गुनगुनाएँ</button>
         </div>
     </div>
 
-    <!-- Three.js (3D लाइब्रेरी) इम्पोर्ट करना -->
     <script type="importmap">
-      {
-        "imports": {
-          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@3.0.0/lib/three-vrm.module.js"
+            }
         }
-      }
     </script>
 
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 
-        // 1. सीन (Scene) सेटअप
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1a1a2e); // डार्क बैकग्राउंड
+        
+        // 1. सिनेमैटिक कैमरा (Passport size, जैसा दूसरी इमेज में है)
+        const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.1, 2.5); // कैमरा थोड़ा दूर
+        camera.lookAt(0, 0.9, 0); // सीने/चेहरे पर फोकस
 
-        // 2. कैमरा सेटअप
-        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-        camera.position.set(0, 1.2, 3.5); // कैमरा मॉडल के करीब
-
-        // 3. रेंडरर (स्क्रीन पर दिखाने के लिए)
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(container.clientWidth, container.clientHeight);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.shadowMap.enabled = true;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        
+        // 🔥 सफेद चेहरा रोकने के लिए टोन मैपिंग (सबसे जरुरी)
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
         container.appendChild(renderer.domElement);
 
-        // 4. लाइटिंग (तस्वीर 2 जैसी सॉफ्ट लाइटिंग के लिए)
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5); // मुख्य रोशनी
+        // 2. स्मूद और नेचुरल लाइटिंग
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // बेस लाइट
         scene.add(ambientLight);
         
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
-        directionalLight.position.set(2, 5, 3);
-        scene.add(directionalLight);
+        const frontLight = new THREE.DirectionalLight(0xfff5e6, 0.8); // सॉफ्ट वार्म लाइट
+        frontLight.position.set(0, 2, 3);
+        scene.add(frontLight);
 
-        const backLight = new THREE.DirectionalLight(0xa0c4ff, 1); // पीछे से नीली रोशनी
-        backLight.position.set(-2, 3, -3);
-        scene.add(backLight);
+        const rimLight = new THREE.DirectionalLight(0x7b61ff, 0.5); // पीछे से हल्की नीली लाइट
+        rimLight.position.set(0, 2, -3);
+        scene.add(rimLight);
 
-        // 5. माउस कंट्रोल (मॉडल को घुमाने के लिए)
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.target.set(0, 1, 0);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.maxPolarAngle = Math.PI / 2; // नीचे ज़मीन के अंदर न जाए
-        controls.update();
+        // 3. एक साफ़-सुथरी चेयर (दूसरी इमेज जैसी)
+        const chairGroup = new THREE.Group();
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0x4a3b32, roughness: 0.7 }); // लकड़ी का रंग
+        const cushionMat = new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.9 }); // सफेद कुशन
+        
+        // सीट का कुशन
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.15, 0.9), cushionMat);
+        seat.position.y = 0.45;
+        chairGroup.add(seat);
+        
+        // पीठ का कुशन
+        const back = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.0, 0.15), cushionMat);
+        back.position.set(0, 1.0, -0.4);
+        chairGroup.add(back);
 
-        // 6. 3D मॉडल लोड करना
+        // लकड़ी के आर्मरेस्ट
+        const armGeo = new THREE.BoxGeometry(0.1, 0.1, 0.8);
+        const armL = new THREE.Mesh(armGeo, woodMat); armL.position.set(-0.5, 0.7, 0); chairGroup.add(armL);
+        const armR = new THREE.Mesh(armGeo, woodMat); armR.position.set(0.5, 0.7, 0); chairGroup.add(armR);
+        
+        // लकड़ी के पैर
+        const legGeo = new THREE.BoxGeometry(0.1, 0.45, 0.1);
+        const leg1 = new THREE.Mesh(legGeo, woodMat); leg1.position.set(0.4, 0.22, 0.4); chairGroup.add(leg1);
+        const leg2 = new THREE.Mesh(legGeo, woodMat); leg2.position.set(-0.4, 0.22, 0.4); chairGroup.add(leg2);
+        const leg3 = new THREE.Mesh(legGeo, woodMat); leg3.position.set(0.4, 0.22, -0.4); chairGroup.add(leg3);
+        const leg4 = new THREE.Mesh(legGeo, woodMat); leg4.position.set(-0.4, 0.22, -0.4); chairGroup.add(leg4);
+        
+        scene.add(chairGroup);
+
+        // 4. मॉडल लोडर
         const loader = new GLTFLoader();
-        
-        // ⚠️ ध्यान दें: यह एक डेमो 3D मॉडल है। 
-        // आप अपनी खुद की हाई-क्वालिटी लड़की वाली .gltf या .vrm फाइल का लिंक यहाँ डाल सकते हैं।
-        const modelURL = 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb'; 
-        
-        loader.load(modelURL, function (gltf) {
-            const model = gltf.scene;
-            
-            // मॉडल का साइज़ और पोज़िशन सेट करें
-            model.position.set(0, 0, 0);
-            model.scale.set(1, 1, 1);
-            
-            // अगर मॉडल में एनिमेशन है, तो उसे चलाएं
-            if (gltf.animations && gltf.animations.length > 0) {
-                const mixer = new THREE.AnimationMixer(model);
-                const action = mixer.clipAction(gltf.animations[0]); // पहली एनिमेशन
-                action.play();
-                
-                // एनिमेशन लूप
-                const clock = new THREE.Clock();
-                function animateModel() {
-                    requestAnimationFrame(animateModel);
-                    const delta = clock.getDelta();
-                    mixer.update(delta);
-                    renderer.render(scene, camera);
+        loader.register((parser) => new VRMLoaderPlugin(parser));
+
+        // ⚠️ यहाँ अपना असली 'zoya.vrm' फाइल का लिंक डालें!
+        const modelURL = 'https://pixiv.github.io/three-vrm/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm'; 
+
+        let currentVrm = null;
+
+        loader.load(
+            modelURL,
+            (gltf) => {
+                document.getElementById('loading').style.display = 'none';
+                const model = gltf.scene;
+                scene.add(model);
+
+                if (gltf.userData.vrm) {
+                    const vrm = gltf.userData.vrm;
+                    currentVrm = vrm;
+                    
+                    VRMUtils.removeUnnecessaryVertices(gltf.scene);
+                    VRMUtils.combineSkeletons(gltf.scene);
+                    VRMUtils.rotateVRM0(vrm);
+
+                    // 🔥 मॉडल को चेयर पर बैठाना
+                    model.position.y = 0.15; 
+
+                    // 🔥 5. परफेक्ट बैठने की पोज़ (Bones) 🔥
+                    const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                    const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+                    const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+                    const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+                    
+                    const leftUpperLeg = vrm.humanoid.getNormalizedBoneNode('leftUpperLeg');
+                    const rightUpperLeg = vrm.humanoid.getNormalizedBoneNode('rightUpperLeg');
+                    const leftLowerLeg = vrm.humanoid.getNormalizedBoneNode('leftLowerLeg');
+                    const rightLowerLeg = vrm.humanoid.getNormalizedBoneNode('rightLowerLeg');
+
+                    // हाथों को गोद में रखना
+                    if (leftUpperArm && rightUpperArm) {
+                        leftUpperArm.rotation.z = 1.35; 
+                        rightUpperArm.rotation.z = -1.35;
+                        leftUpperArm.rotation.x = 0.2; 
+                        rightUpperArm.rotation.x = 0.2;
+                        
+                        if (leftLowerArm && rightLowerArm) {
+                            leftLowerArm.rotation.y = -1.3; 
+                            rightLowerArm.rotation.y = 1.3;
+                            leftLowerArm.rotation.x = 0.4;
+                            rightLowerArm.rotation.x = 0.4;
+                        }
+                    }
+
+                    // पैरों को 90 डिग्री पर मोड़ना (बैठने के लिए)
+                    if (leftUpperLeg && rightUpperLeg) {
+                        leftUpperLeg.rotation.x = -1.5; 
+                        rightUpperLeg.rotation.x = -1.5;
+                        
+                        // घुटनों को थोड़ा पास लाना
+                        leftUpperLeg.rotation.z = -0.05;
+                        rightUpperLeg.rotation.z = 0.05;
+
+                        // पिंडली को सीधा नीचे करना
+                        if (leftLowerLeg && rightLowerLeg) {
+                            leftLowerLeg.rotation.x = 1.5;
+                            rightLowerLeg.rotation.x = 1.5;
+                        }
+                    }
                 }
-                animateModel();
-            } else {
-                // अगर एनिमेशन नहीं है तो सिर्फ रेंडर करें
-                renderer.render(scene, camera);
+            },
+            (progress) => console.log('लोड हो रहा है: ' + Math.round((progress.loaded / progress.total) * 100) + '%'),
+            (error) => {
+                console.error('मॉडल लोड करने में एरर:', error);
+                document.getElementById('loading').innerText = "मॉडल लोड नहीं हो पाया!";
             }
+        );
 
-            scene.add(model);
-            console.log("3D मॉडल सफलतापूर्वक लोड हो गया!");
-
-        }, undefined, function (error) {
-            console.error("मॉडल लोड करने में एरर:", error);
-        });
-
-        // 7. एनिमेशन लूप
+        const clock = new THREE.Clock();
         function animate() {
             requestAnimationFrame(animate);
-            controls.update();
+            const delta = clock.getDelta();
+            if (currentVrm) currentVrm.update(delta);
             renderer.render(scene, camera);
         }
         animate();
 
-        // स्क्रीन साइज़ बदलने पर एडजस्ट करें
         window.addEventListener('resize', () => {
-            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
-            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
-        // 8. बटन्स के फंक्शन्स (डेमो के लिए)
-        window.speak = function() {
-            alert("ज़ोया सुन रही है... (यहाँ आप वॉइस रिकग्निशन कोड जोड़ सकते हैं)");
-        };
-        window.stop = function() {
-            alert("ज़ोया रुक गई है।");
-        };
     </script>
 </body>
 </html>
