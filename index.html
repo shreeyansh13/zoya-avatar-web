@@ -62,6 +62,22 @@ let gesturePhase=0, gestureBlend=0, applyCrossedPose=()=>{};
 let behaviorMode='idle', audioCtx=null, melodyTimer=null, melodyNodes=[];
 let applyBodyPose=()=>{};
 let emotionMode='neutral';
+let gestureMode='idle';
+function chooseBehavior(text=''){
+  const t=String(text).toLowerCase();
+  if(/नमस्ते|प्रणाम|hello|नमस्कार/.test(t)){gestureMode='namaste';return;}
+  if(/धन्यवाद|शुक्रिया|आभार|thank you/.test(t)){gestureMode='thanks';return;}
+  if(/माफ|क्षमा|sorry|गलती/.test(t)){gestureMode='apology';return;}
+  if(/क्यों|कैसे|सोच|विचार|पता नहीं|🤔/.test(t)){gestureMode='thinking';return;}
+  if(/वाह|शानदार|खुश|बधाई|अच्छी खबर|मज़ेदार|मजेदार|😂|😄/.test(t)){gestureMode='happy';return;}
+  if(/अलविदा|बाय|फिर मिलेंगे|bye/.test(t)){gestureMode='goodbye';return;}
+  if(/समझाइ|मतलब|उदाहरण|बताता|बताती|देखिए|पहला|दूसरा/.test(t)){gestureMode='explain';return;}
+  if(/यहाँ|वहाँ|देखो|ध्यान दें|इशारा|यह है/.test(t)){gestureMode='point';return;}
+  if(/उदास|दुख|अफसोस|दर्द|😭|😢/.test(t)){gestureMode='sad';return;}
+  if(/गुस्सा|नाराज़|नाराज|चेतावनी|खतरा|😠|😡/.test(t)){gestureMode='angry';return;}
+  if(/सुन रही|बताइए|आप कहिए|क्या हुआ/.test(t)){gestureMode='listening';return;}
+  gestureMode='talk';
+}
 
 function setStatus(message){statusEl.textContent=message;}
 function stopVoice(){
@@ -71,6 +87,7 @@ function stopVoice(){
   for(const node of melodyNodes){try{node.stop?.();}catch(_){} try{node.disconnect?.();}catch(_){}}
   melodyNodes=[];
   behaviorMode='idle';
+  gestureMode='idle';
   if(vrm?.expressionManager) {
     for(const name of ['aa','ih','ou']) {
       try{vrm.expressionManager.setValue(name,0)}catch(_){}
@@ -80,11 +97,12 @@ function stopVoice(){
 function speak(text){
   if(!('speechSynthesis' in window)){setStatus('इस ब्राउज़र में आवाज़ उपलब्ध नहीं है। Chrome में खोलकर जाँचें।');sendBtn.disabled=false;return;}
   stopVoice();
+  chooseBehavior(text);
   emotionMode = /हाहा|मज़ेदार|मजेदार|हँस|हंस|खुश|बहुत अच्छा|वाह|शानदार|जोक|😂|😄|😊/i.test(text) ? 'happy' : /दुख|दुखी|माफ़|माफ|अफसोस|उदास|रोना|दर्द|क्षमा|😢|😭/i.test(text) ? 'sad' : /गुस्सा|नाराज़|नाराज|गलत|चेतावनी|खतरा|क्रोध|😠|😡/i.test(text) ? 'angry' : /क्या\?|क्यों|कैसे|सच में|वाकई|अचानक|हैरान|आश्चर्य|😮|🤔/i.test(text) ? 'surprised' : 'neutral';
   utterance=new SpeechSynthesisUtterance(text);
   utterance.lang='hi-IN'; utterance.rate=.94; utterance.pitch=1.02;
   utterance.onstart=()=>{speaking=true;behaviorMode='talk';setStatus('ज़ोया बोल रही है…');};
-  utterance.onend=()=>{speaking=false;behaviorMode='idle';emotionMode='neutral';setStatus('जवाब पूरा हुआ।');};
+  utterance.onend=()=>{speaking=false;behaviorMode='idle';gestureMode='idle';emotionMode='neutral';setStatus('जवाब पूरा हुआ।');};
   utterance.onerror=(event)=>{speaking=false;behaviorMode='idle';sendBtn.disabled=false;setStatus('आवाज़ की त्रुटि: '+(event.error||'speech error'));};
   window.speechSynthesis.speak(utterance);
 }
@@ -162,6 +180,7 @@ sendBtn.addEventListener('click',async()=>{
   try{
     const answer=await askBackend(question);
     messageEl.value=answer;
+    chooseBehavior(question+' '+answer);
     speak(answer);
   }catch(error){
     const msg=error?.message||'अज्ञात नेटवर्क त्रुटि';
@@ -217,8 +236,8 @@ function frameModel(model){
   model.position.z-=center.z*scale;
   model.updateMatrixWorld(true);
   // Seated portrait framing: include head, torso, lap and chair seat.
-  camera.position.set(0,1.34,3.05);
-  camera.lookAt(0,1.28,0);
+  camera.position.set(0,1.42,3.55);
+  camera.lookAt(0,1.34,0);
   camera.updateProjectionMatrix();
 }
 async function init(){
@@ -277,8 +296,7 @@ async function init(){
       leftUpperLeg: bone('leftUpperLeg'), rightUpperLeg: bone('rightUpperLeg'),
       leftLowerLeg: bone('leftLowerLeg'), rightLowerLeg: bone('rightLowerLeg'),
       leftFoot: bone('leftFoot'), rightFoot: bone('rightFoot')
-    };
-    const poseBase = {};
+    };const poseBase = {};
     for (const [key, node] of Object.entries(poseBones)) {
       if (node) poseBase[key] = node.quaternion.clone();
     }
@@ -323,11 +341,27 @@ async function init(){
       const chest=worldPos(chestNode);
       // Target the hands at the upper chest, in front of the torso.
       // A small voice-synced motion keeps the hands together without dropping them.
+      // Gesture-specific hand targets. All positions are relative to the chest
+      // so the same behavior works across different VRM model scales.
       const front=0.24;
-      const motion=active ? Math.sin(phase)*0.030 : Math.sin(phase*0.35)*0.004;
-      const chestTargetY=0.075; // slightly above the chest bone origin
-      const leftTarget=chest.clone().add(new THREE.Vector3(-0.055-motion,chestTargetY+Math.sin(phase*0.8)*0.014*Number(active),front));
-      const rightTarget=chest.clone().add(new THREE.Vector3(0.055-motion,chestTargetY+Math.sin(phase*0.8+0.5)*0.014*Number(active),front));
+      const wave=active ? Math.sin(phase)*0.025 : Math.sin(phase*0.35)*0.004;
+      let lx=-0.065, rx=0.065, ly=0.075, ry=0.075, lz=front, rz=front;
+      switch(gestureMode){
+        case 'idle': lx=-0.09; rx=0.09; ly=-0.18; ry=-0.18; lz=0.16; rz=0.16; break;
+        case 'namaste': case 'apology': lx=-0.025; rx=0.025; ly=0.13; ry=0.13; lz=0.27; rz=0.27; break;
+        case 'talk': lx=-0.10+wave; rx=0.07; ly=0.06+Math.abs(Math.sin(phase))*0.035; ry=0.00; break;
+        case 'explain': lx=-0.22; rx=0.22; ly=0.015+Math.abs(Math.sin(phase))*0.025; ry=0.015+Math.abs(Math.sin(phase+1))*0.025; lz=0.20; rz=0.20; break;
+        case 'point': lx=-0.07; rx=0.22; ly=0.02; ry=0.17+Math.sin(phase)*0.015; rz=0.19; break;
+        case 'thinking': lx=-0.09; rx=0.16; ly=-0.02; ry=0.27; rz=0.18; break;
+        case 'listening': lx=-0.045; rx=0.045; ly=0.02; ry=0.02; lz=0.25; rz=0.25; break;
+        case 'happy': lx=-0.13; rx=0.13; ly=0.13+Math.abs(Math.sin(phase))*0.04; ry=0.13+Math.abs(Math.sin(phase+0.6))*0.04; break;
+        case 'thanks': lx=-0.035; rx=0.035; ly=0.04; ry=0.04; lz=0.28; rz=0.28; break;
+        case 'sad': lx=-0.045; rx=0.045; ly=-0.02; ry=-0.02; lz=0.22; rz=0.22; break;
+        case 'angry': lx=-0.12; rx=0.12; ly=0.00; ry=0.00; lz=0.19; rz=0.19; break;
+        case 'goodbye': lx=-0.12; rx=0.19; ly=0.00; ry=0.18+Math.sin(phase*1.8)*0.045; rz=0.18; break;
+      }
+      const leftTarget=chest.clone().add(new THREE.Vector3(lx+(active?wave:0),ly+Math.sin(phase*0.8)*0.008*Number(active),lz));
+      const rightTarget=chest.clone().add(new THREE.Vector3(rx+(active?Math.sin(phase+0.8)*0.018:0),ry+Math.sin(phase*0.8+0.5)*0.008*Number(active),rz));
       const leftShoulder=poseBones.leftShoulder||poseBones.leftUpper;
       const rightShoulder=poseBones.rightShoulder||poseBones.rightUpper;
       const leftElbow=leftShoulder?worldPos(leftShoulder).add(new THREE.Vector3(-0.15,-0.075,0.12)):null;
@@ -348,7 +382,9 @@ async function init(){
         }
       }
       vrm.scene.updateMatrixWorld(true);
-    };// Continuous whole-upper-body animation. Gentle idle breathing/sway always runs;
+    };
+
+    // Continuous whole-upper-body animation. Gentle idle breathing/sway always runs;
     // speaking and humming add more head, torso and shoulder motion. animate() calls this each frame.
     let bodyClock=0;
     applyBodyPose = (delta, mode, phase) => {
@@ -357,8 +393,9 @@ async function init(){
       const idleZ=Math.sin(bodyClock*0.82)*0.012;
       const active=(mode==='talk'||mode==='hum');
       const energy=mode==='hum'?1.0:(mode==='talk'?0.75:0.25);
-      const nod=Math.sin(bodyClock*(mode==='hum'?3.0:2.0))*0.030*energy;
-      const sway=Math.sin(bodyClock*(mode==='hum'?2.0:1.35))*0.040*energy;
+      const gestureEnergy=['happy','explain','goodbye'].includes(gestureMode)?1.25:1.0;
+      const nod=Math.sin(bodyClock*(mode==='hum'?3.0:2.0))*0.030*energy*gestureEnergy;
+      const sway=Math.sin(bodyClock*(mode==='hum'?2.0:1.35))*0.040*energy*gestureEnergy;
       const apply=(key,x,y,z)=>{
         const node=poseBones[key],base=poseBase[key];
         if(!node||!base)return;
@@ -381,7 +418,8 @@ async function init(){
       apply('spine',idleX+sway*0.45,0,idleZ+sway*0.3);
       apply('chest',idleX*0.55+sway*0.55,0,nod*0.35);
       apply('neck',nod*0.7,Math.sin(bodyClock*0.6)*0.015,0);
-      apply('head',nod,Math.sin(bodyClock*0.72)*0.025,Math.sin(bodyClock*0.8)*0.012);
+      const headTilt=gestureMode==='thinking'?0.10:gestureMode==='sad'?0.055:gestureMode==='happy'?-0.035:0;
+      apply('head',nod,Math.sin(bodyClock*0.72)*0.025,headTilt+Math.sin(bodyClock*0.8)*0.012);
       apply('leftShoulder',0,0,active?0.025*Math.sin(phase):idleZ);
       apply('rightShoulder',0,0,active?-0.025*Math.sin(phase*0.8+1): -idleZ);
     };
@@ -411,5 +449,3 @@ init();
 </script>
 </body>
 </html>
-
-  
