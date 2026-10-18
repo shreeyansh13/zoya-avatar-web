@@ -279,9 +279,7 @@ async function init(){
     if(!vrm)throw new Error('फ़ाइल से VRM डेटा नहीं मिला।');
     // Compatibility guard in case the utility is absent in a loaded package build.
     if(VRMUtils && typeof VRMUtils.rotateVRM0==='function') VRMUtils.rotateVRM0(vrm);
-    scene.add(vrm.scene);
-
-    // Natural bent-arm pose with expressive, speech-synced gestures.
+    scene.add(vrm.scene);// Natural bent-arm pose with expressive, speech-synced gestures.
     // Use normalized VRM bones and preserve their authored rest rotations.
     const bone = name => vrm.humanoid?.getNormalizedBoneNode(name);
     const poseBones = {
