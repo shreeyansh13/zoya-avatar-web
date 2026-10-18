@@ -176,21 +176,21 @@ function animate(){
 }
 
 function frameModel(model){
-  // पोज़ लगाने से पहले मॉडल का साइज़ और पोज़िशन सेट करें
   model.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(model);
   const size=bounds.getSize(new THREE.Vector3());
   
-  // अवतार का साइज़ सेट करें (लगभग 1.6 मीटर)
+  // साइज़ सेट करें
   const scale=1.6/size.y;
   model.scale.setScalar(scale);
   
-  // अवतार को सेंटर में और ज़मीन पर खड़ा करें
-  model.position.set(0, 0, 0);
+  // अवतार को सेंटर में रखें और थोड़ा नीचे करें ताकि वह कुर्सी पर बैठ सके
+  model.position.set(0, -0.15, 0); 
   
-  // कैमरा सेटअप
-  camera.position.set(0, 1.1, 2.8);
-  camera.lookAt(0, 0.9, 0);
+  // कैमरा सेटअप: अब कैमरा थोड़ा नीचे है (Y=0.9) और थोड़ा पीछे (Z=3.5) है
+  // ताकि पूरी कुर्सी और अवतार के पैर स्क्रीन पर अच्छे से दिखें
+  camera.position.set(0, 0.95, 3.5);
+  camera.lookAt(0, 0.7, 0); // नीचे की तरफ देख रहा है जहाँ कुर्सी है
   camera.updateProjectionMatrix();
 }
 
@@ -236,19 +236,11 @@ async function init(){
     rimLight.position.set(-1, 2, -4);
     scene.add(rimLight);
 
-    // --- फर्श पर शैडो ---
-    const shadowPlaneGeo = new THREE.CircleGeometry(2.0, 32);
-    const shadowPlaneMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 });
-    const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
-    shadowPlane.rotation.x = -Math.PI / 2;
-    shadowPlane.position.y = 0.01;
-    scene.add(shadowPlane);
-
-    // --- कुर्सी ---
+    // --- कुर्सी (अब पहले से ऊंची और बेहतर है) ---
     chairGroup = new THREE.Group();
-    const chairMat = new THREE.MeshStandardMaterial({color:0x8a8278, roughness:.9});
-    const darkMat = new THREE.MeshStandardMaterial({color:0x3a3530, roughness:.8});
-    const cushionMat = new THREE.MeshStandardMaterial({color:0x5a5650, roughness:1});
+    const chairMat = new THREE.MeshStandardMaterial({color:0x5d564e, roughness:.9});
+    const darkMat = new THREE.MeshStandardMaterial({color:0x2a2520, roughness:.8});
+    const cushionMat = new THREE.MeshStandardMaterial({color:0x3c3833, roughness:1});
     
     const makeChairPart=(w,h,d,x,y,z,mat)=>{
       const geo=new THREE.BoxGeometry(w,h,d);
@@ -259,16 +251,23 @@ async function init(){
       chairGroup.add(mesh); return mesh;
     };
     
-    // कुर्सी को छोटा और पीछे किया गया है ताकि अवतार ठीक से बैठ सके
-    makeChairPart(0.9,.1,.7,0,.45,-.20,chairMat); // सीट
-    makeChairPart(0.85,.8,.1,0,0.85,-.55,chairMat); // बैकरेस्ट
-    makeChairPart(.08,.45,.08,-.42,0.22,0.05,darkMat); // सामने के पैर
-    makeChairPart(.08,.45,.08,.42,0.22,0.05,darkMat);
-    makeChairPart(.08,.85,.08,-.42,0.42,-.5,darkMat); // पीछे के पैर
-    makeChairPart(.08,.85,.08,.42,0.42,-.5,darkMat);
-    // कुशन
-    makeChairPart(0.85,.08,.65,0,.50,-.20,cushionMat); 
-    makeChairPart(0.8,.7,.08,0,0.85,-.50,cushionMat);
+    // कुर्सी की ऊंचाई बढ़ाई गई है ताकि अवतार का कूल्हा (hips) उस पर टिक सके
+    makeChairPart(0.9,.1,.7,0,.65,-.20,chairMat); // सीट (Seat)
+    makeChairPart(0.85,.8,.1,0,1.05,-.55,chairMat); // बैकरेस्ट (Backrest)
+    
+    // पैर (Legs) - इन्हें लंबा किया गया है
+    makeChairPart(.08,.6,.08,-.42,0.3,0.05,darkMat); 
+    makeChairPart(.08,.6,.08,.42,0.3,0.05,darkMat);
+    makeChairPart(.08,1.0,.08,-.42,0.5,-.5,darkMat); 
+    makeChairPart(.08,1.0,.08,.42,0.5,-.5,darkMat);
+    
+    // कुशन (Cushions)
+    makeChairPart(0.85,.08,.65,0,.7,-.20,cushionMat); 
+    makeChairPart(0.8,.7,.08,0,1.05,-.50,cushionMat);
+
+    // हैंडरेस्ट (Armrests)
+    makeChairPart(0.15,.1,.6,-.5,0.85,-0.2,chairMat);
+    makeChairPart(0.15,.1,.6,.5,0.85,-0.2,chairMat);
 
     chairGroup.position.set(0, 0, -0.1);
     scene.add(chairGroup);
@@ -331,7 +330,7 @@ async function init(){
       boneNode.updateMatrixWorld(true);
     };
 
-    // --- हाथों को गोद (Lap) में रखने का लॉजिक ---
+    // हाथों को गोद (Lap) में रखने का लॉजिक
     applySeatedPose = (blend = 0, phase = 0) => {
       const active=behaviorMode==='talk'||behaviorMode==='hum';
       
@@ -346,7 +345,7 @@ async function init(){
       
       const spinePos = worldPos(spineNode);
       
-      // हाथों को नीचे (गोद में) टारगेट करें
+      // गोद में हाथ रखने के लिए पोज़िशन
       const front = 0.28; 
       const down = -0.25; 
       const motion = active ? Math.sin(phase) * 0.015 : 0;
@@ -357,7 +356,6 @@ async function init(){
       const leftShoulder=poseBones.leftShoulder||poseBones.leftUpper;
       const rightShoulder=poseBones.rightShoulder||poseBones.rightUpper;
       
-      // कोहनियों को थोड़ा बाहर की तरफ
       const leftElbow=leftShoulder?worldPos(leftShoulder).add(new THREE.Vector3(-0.15,-0.15,0.05)):null;
       const rightElbow=rightShoulder?worldPos(rightShoulder).add(new THREE.Vector3(0.15,-0.15,0.05)):null;
       
@@ -377,7 +375,7 @@ async function init(){
       vrm.scene.updateMatrixWorld(true);
     };
 
-    // --- बैठने का पोज़ और ब्रीदिंग एनिमेशन ---
+    // बैठने का पोज़ और ब्रीदिंग एनिमेशन
     let bodyClock=0;
     applyBodyPose = (delta, mode, phase) => {
       bodyClock += delta;
@@ -398,8 +396,7 @@ async function init(){
         node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')));
       };
       
-      // --- पैरों का सही पोज़ (अब उल्टा नहीं होगा) ---
-      // पैरों को आगे की तरफ (Positive X) मोड़ना है
+      // पैरों का सही पोज़ (सीटिंग)
       apply('leftUpperLeg', 1.45, 0.05, -0.1); 
       apply('rightUpperLeg', 1.45, -0.05, 0.1);
       apply('leftLowerLeg', -1.4, 0, 0.05);
@@ -407,7 +404,7 @@ async function init(){
       apply('leftFoot', 0.1, 0, 0);
       apply('rightFoot', 0.1, 0, 0);
 
-      // --- शरीर और सिर ---
+      // शरीर और सिर
       apply('hips', 0, idleX*0.35, idleZ*0.25);
       apply('spine', idleX+sway*0.4, 0, idleZ+sway*0.3);
       apply('chest', idleX*0.5+sway*0.5, 0, nod*0.3);
@@ -421,7 +418,6 @@ async function init(){
       apply('rightShoulder',0,0,active?-0.02*Math.sin(phase*0.8+1): -idleZ);
     };
     
-    // सबसे पहले मॉडल को फ्रेम करें, फिर पोज़ लगाएं
     frameModel(vrm.scene);
     applySeatedPose(0,0);
     applyBodyPose(0, 'idle', 0);
