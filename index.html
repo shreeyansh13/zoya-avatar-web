@@ -1,443 +1,195 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="hi">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#101116">
-<title>Zoya AI — 3D Avatar</title>
-<style>
-*{box-sizing:border-box}:root{color-scheme:dark}
-body{margin:0;background:#101116;color:#fff;font-family:system-ui,sans-serif;min-height:100dvh}
-header{padding:14px 16px;font-size:20px;font-weight:750;border-bottom:1px solid #30313a;text-align:center;letter-spacing:1px;}
-main{max-width:680px;margin:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
-#stage{height:clamp(370px,62dvh,620px);position:relative;overflow:hidden;border:1px solid #30313a;border-radius:18px;background:radial-gradient(ellipse at 50% 40%,#2a2d42,#12131a 75%)}
-#stage canvas{display:block;width:100%;height:100%}
-#status{min-height:22px;color:#d0d0dc;font-size:14px;overflow-wrap:anywhere;text-align:center;}
-textarea{width:100%;min-height:92px;resize:vertical;border:1px solid #393b49;border-radius:12px;padding:12px;color:white;background:#1b1c25;font:inherit}
-.buttons{display:flex;gap:10px}button{flex:1;padding:13px 10px;border:0;border-radius:12px;font:inherit;font-weight:700;cursor:pointer;transition:transform 0.1s;}
-button:active{transform:scale(0.98);}
-#send{background:#7567ff;color:#fff}#stop{background:#30313a;color:#fff}button:disabled{opacity:.6}
-.note{font-size:12px;line-height:1.5;color:#a7a8b3;text-align:center;}
-</style>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
-    "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.min.js"
-  }
-}
-</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zoya AI - 3D Avatar</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #13131c; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        /* बैकग्राउंड में एक सॉफ्ट सा ग्रेडिएंट ताकि सिनेमैटिक लुक आए */
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; background: radial-gradient(circle at center, #1e1e2b 0%, #0a0a0f 100%); }
+        
+        .ui-container { position: absolute; bottom: 15px; left: 0; width: 100%; padding: 0 15px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; z-index: 10; }
+        .chat-box { background: rgba(35, 35, 48, 0.85); backdrop-filter: blur(5px); border: 1px solid #3a3a4a; color: #ffffff; padding: 15px; border-radius: 12px; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .button-row { display: flex; gap: 10px; }
+        .btn { flex: 1; padding: 14px 10px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: opacity 0.2s; }
+        .btn:active { opacity: 0.7; }
+        .btn-primary { background-color: #7b61ff; color: white; }
+        .btn-secondary { background-color: #2a2a35; color: white; border: 1px solid #3a3a4a; }
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 18px; z-index: 5; }
+    </style>
 </head>
 <body>
-<header>ZOYA AI · 3D AVATAR</header>
-<main>
-  <section id="stage" aria-label="Zoya 3D avatar"></section>
-  <textarea id="message" placeholder="अपना संदेश हिंदी में लिखें…">नमस्ते ज़ोया, आज की तारीख क्या है?</textarea>
-  <div class="buttons"><button id="send">💬 पूछें और सुनें</button><button id="stop">⏹ रोकें</button></div>
-  <div class="buttons"><button id="humOriginal">🎵 मौलिक धुन</button><button id="humRequested">🎶 गुनगुनाएँ</button></div>
-  <div id="status" role="status">3D मॉड्यूल शुरू हो रहे हैं…</div>
-  <div class="note">यह 3D VRM बैठने की मुद्रा वाला परीक्षण संस्करण है।</div>
-</main>
-<script type="module">
-const statusEl=document.getElementById('status');
-const stageEl=document.getElementById('stage');
-const messageEl=document.getElementById('message');
-const sendBtn=document.getElementById('send');
-let THREE, GLTFLoader, VRMLoaderPlugin, VRMUtils;
-let vrm=null,renderer=null,scene=null,camera=null,clock=null;
-let utterance=null,speaking=false,mouthPhase=0,rafId=0;
-let gesturePhase=0, gestureBlend=0, applySeatedPose=()=>{};
-let behaviorMode='idle', audioCtx=null, melodyTimer=null, melodyNodes=[];
-let applyBodyPose=()=>{};
-let chairGroup=null;
+    <div id="loading">अवतार लोड हो रहा है...</div>
+    <div id="canvas-container"></div>
 
-function setStatus(message){statusEl.textContent=message;}
-function stopVoice(){
-  if('speechSynthesis' in window) window.speechSynthesis.cancel();
-  speaking=false; utterance=null; sendBtn.disabled=false;
-  if(melodyTimer){clearTimeout(melodyTimer);melodyTimer=null;}
-  for(const node of melodyNodes){try{node.stop?.();}catch(_){} try{node.disconnect?.();}catch(_){}}
-  melodyNodes=[];
-  behaviorMode='idle';
-  if(vrm?.expressionManager) {
-    for(const name of ['aa','ih','ou']) {
-      try{vrm.expressionManager.setValue(name,0)}catch(_){}
-    }
-  }
-}
-function speak(text){
-  if(!('speechSynthesis' in window)){setStatus('इस ब्राउज़र में आवाज़ उपलब्ध नहीं है।');sendBtn.disabled=false;return;}
-  stopVoice();
-  utterance=new SpeechSynthesisUtterance(text);
-  utterance.lang='hi-IN'; utterance.rate=.94; utterance.pitch=1.02;
-  utterance.onstart=()=>{speaking=true;behaviorMode='talk';setStatus('ज़ोया बोल रही है…');};
-  utterance.onend=()=>{speaking=false;behaviorMode='idle';setStatus('जवाब पूरा हुआ।');};
-  utterance.onerror=(event)=>{speaking=false;behaviorMode='idle';sendBtn.disabled=false;setStatus('आवाज़ की त्रुटि: '+(event.error||'speech error'));};
-  window.speechSynthesis.speak(utterance);
-}
-async function askBackend(userText){
-  setStatus('Gemini से जवाब माँगा जा रहा है…');
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25000);
-  let response;
-  try {
-    response = await fetch('https://zoya-backend-ctr8.onrender.com/chat',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:userText}),
-      signal: controller.signal
-    });
-  } catch (err) {
-    if (err?.name === 'AbortError') throw new Error('25 सेकंड में जवाब नहीं आया।');
-    throw err;
-  } finally { clearTimeout(timeoutId); }
-  if(!response.ok) throw new Error('Backend HTTP '+response.status);
-  const data=await response.json();
-  const answer=typeof data==='string'?data:(data.reply??data.response??data.answer??data.text??data.message??data.output);
-  if(typeof answer!=='string'||!answer.trim()) throw new Error('Response format पहचाना नहीं गया।');
-  return answer.trim();
-}
+    <div class="ui-container">
+        <div class="chat-box">नमस्ते ज़ोया, आज की तारीख क्या है?</div>
+        <div class="button-row">
+            <button class="btn btn-primary">💬 पूछें और सुनें</button>
+            <button class="btn btn-secondary">⏹️ रोकें</button>
+        </div>
+        <div class="button-row">
+            <button class="btn btn-secondary">🎵 मौलिक धुन</button>
+            <button class="btn btn-secondary">🎶 गुनगुनाएँ</button>
+        </div>
+    </div>
 
-function playMelody(mode='original'){
-  stopVoice();
-  const AudioContextClass=window.AudioContext||window.webkitAudioContext;
-  if(!AudioContextClass){setStatus('Audio generation उपलब्ध नहीं है।');return;}
-  audioCtx=audioCtx||new AudioContextClass();
-  audioCtx.resume().catch(()=>{});
-  behaviorMode='hum'; speaking=true;
-  const original=[392,440,523.25,440,392,329.63,349.23,392];
-  const requested=[523.25,587.33,659.25,587.33,523.25,440,392,440];
-  const notes=mode==='original'?original:requested;
-  let index=0;
-  setStatus(mode==='original'?'ज़ोया अपनी मौलिक धुन गुनगुना रही है…':'ज़ोया एक छोटी धुन गुनगुना रही है…');
-  const playNote=()=>{
-    if(behaviorMode!=='hum')return;
-    const now=audioCtx.currentTime;
-    const osc=audioCtx.createOscillator();
-    const overtone=audioCtx.createOscillator();
-    const gain=audioCtx.createGain();
-    const mix=audioCtx.createGain();
-    osc.type='sine'; osc.frequency.value=notes[index%notes.length];
-    overtone.type='triangle'; overtone.frequency.value=notes[index%notes.length]*2;
-    gain.gain.setValueAtTime(0.0001,now);
-    gain.gain.exponentialRampToValueAtTime(0.055,now+0.04);
-    gain.gain.setTargetAtTime(0.0001,now+0.22,0.09);
-    mix.gain.value=0.22;
-    osc.connect(gain); overtone.connect(mix); mix.connect(gain); gain.connect(audioCtx.destination);
-    osc.start(now); overtone.start(now);
-    osc.stop(now+0.48); overtone.stop(now+0.48);
-    melodyNodes.push(osc,overtone,gain,mix);
-    index++;
-    melodyTimer=setTimeout(playNote,360);
-  };
-  playNote();
-}
-document.getElementById('humOriginal').addEventListener('click',()=>playMelody('original'));
-document.getElementById('humRequested').addEventListener('click',()=>playMelody('requested'));
-
-sendBtn.addEventListener('click',async()=>{
-  const question=messageEl.value.trim();
-  if(!question){setStatus('पहले संदेश लिखें।');return;}
-  stopVoice(); sendBtn.disabled=true;
-  try{
-    const answer=await askBackend(question);
-    messageEl.value=answer;
-    speak(answer);
-  }catch(error){
-    setStatus('कनेक्शन असफल: '+(error?.message||'अज्ञात त्रुटि'));
-  }finally{sendBtn.disabled=false;}
-});
-document.getElementById('stop').addEventListener('click',()=>{
-  stopVoice();setStatus('आवाज़ रोक दी गई; शरीर आराम की स्थिति में लौट रहा है।');
-});
-window.addEventListener('pagehide',stopVoice);
-
-function animate(){
-  rafId=requestAnimationFrame(animate);
-  if(!renderer||!scene||!camera)return;
-  const delta=clock.getDelta();
-  if(vrm){
-    vrm.update(delta);
-    const targetBlend = speaking ? 1 : 0;
-    gestureBlend += (targetBlend - gestureBlend) * Math.min(1, delta * 3.5);
-    if (speaking) gesturePhase += delta * 5.0;
-    
-    try{applyBodyPose(delta, behaviorMode, gesturePhase);}catch(_){}
-    try{applySeatedPose(gestureBlend, gesturePhase);}catch(_){}
-    
-    if(vrm.expressionManager){
-      let amount=0;
-      if(speaking){mouthPhase+=delta*14;amount=.12+Math.abs(Math.sin(mouthPhase))*.38;}
-      try{vrm.expressionManager.setValue('aa',amount);}catch(_){}
-    }
-  }
-  renderer.render(scene,camera);
-}
-
-function frameModel(model){
-  model.updateMatrixWorld(true);
-  const bounds=new THREE.Box3().setFromObject(model);
-  const size=bounds.getSize(new THREE.Vector3());
-  
-  // साइज़ सेट करें
-  const scale=1.6/size.y;
-  model.scale.setScalar(scale);
-  
-  // अवतार को सेंटर में रखें और थोड़ा नीचे करें ताकि वह कुर्सी पर बैठ सके
-  model.position.set(0, -0.15, 0); 
-  
-  // कैमरा सेटअप: अब कैमरा थोड़ा नीचे है (Y=0.9) और थोड़ा पीछे (Z=3.5) है
-  // ताकि पूरी कुर्सी और अवतार के पैर स्क्रीन पर अच्छे से दिखें
-  camera.position.set(0, 0.95, 3.5);
-  camera.lookAt(0, 0.7, 0); // नीचे की तरफ देख रहा है जहाँ कुर्सी है
-  camera.updateProjectionMatrix();
-}
-
-async function init(){
-  try{
-    setStatus('3D libraries डाउनलोड हो रही हैं…');
-    const imports=await Promise.all([
-      import('three'),
-      import('three/addons/loaders/GLTFLoader.js'),
-      import('@pixiv/three-vrm')
-    ]);
-    [THREE,{GLTFLoader},{VRMLoaderPlugin,VRMUtils}]=imports;
-    
-    setStatus('3D renderer शुरू हो रहा है…');
-    scene=new THREE.Scene();
-    scene.background=new THREE.Color(0x171823);
-    
-    camera=new THREE.PerspectiveCamera(30,Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight),.1,100);
-    renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));
-    renderer.setSize(stageEl.clientWidth,stageEl.clientHeight);
-    renderer.outputColorSpace=THREE.SRGBColorSpace;
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    stageEl.appendChild(renderer.domElement);
-    
-    // --- लाइटिंग ---
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x444455, 1.5);
-    scene.add(hemi);
-
-    const keyLight = new THREE.DirectionalLight(0xffffff, 2);
-    keyLight.position.set(2, 3, 4);
-    keyLight.castShadow = true;
-    keyLight.shadow.mapSize.width = 1024;
-    keyLight.shadow.mapSize.height = 1024;
-    scene.add(keyLight);
-
-    const fillLight = new THREE.DirectionalLight(0xa9b8ff, 1.2);
-    fillLight.position.set(-3, 2, 2);
-    scene.add(fillLight);
-
-    const rimLight = new THREE.DirectionalLight(0xffeebb, 2.5);
-    rimLight.position.set(-1, 2, -4);
-    scene.add(rimLight);
-
-    // --- कुर्सी (अब पहले से ऊंची और बेहतर है) ---
-    chairGroup = new THREE.Group();
-    const chairMat = new THREE.MeshStandardMaterial({color:0x5d564e, roughness:.9});
-    const darkMat = new THREE.MeshStandardMaterial({color:0x2a2520, roughness:.8});
-    const cushionMat = new THREE.MeshStandardMaterial({color:0x3c3833, roughness:1});
-    
-    const makeChairPart=(w,h,d,x,y,z,mat)=>{
-      const geo=new THREE.BoxGeometry(w,h,d);
-      const mesh=new THREE.Mesh(geo,mat); 
-      mesh.position.set(x,y,z); 
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      chairGroup.add(mesh); return mesh;
-    };
-    
-    // कुर्सी की ऊंचाई बढ़ाई गई है ताकि अवतार का कूल्हा (hips) उस पर टिक सके
-    makeChairPart(0.9,.1,.7,0,.65,-.20,chairMat); // सीट (Seat)
-    makeChairPart(0.85,.8,.1,0,1.05,-.55,chairMat); // बैकरेस्ट (Backrest)
-    
-    // पैर (Legs) - इन्हें लंबा किया गया है
-    makeChairPart(.08,.6,.08,-.42,0.3,0.05,darkMat); 
-    makeChairPart(.08,.6,.08,.42,0.3,0.05,darkMat);
-    makeChairPart(.08,1.0,.08,-.42,0.5,-.5,darkMat); 
-    makeChairPart(.08,1.0,.08,.42,0.5,-.5,darkMat);
-    
-    // कुशन (Cushions)
-    makeChairPart(0.85,.08,.65,0,.7,-.20,cushionMat); 
-    makeChairPart(0.8,.7,.08,0,1.05,-.50,cushionMat);
-
-    // हैंडरेस्ट (Armrests)
-    makeChairPart(0.15,.1,.6,-.5,0.85,-0.2,chairMat);
-    makeChairPart(0.15,.1,.6,.5,0.85,-0.2,chairMat);
-
-    chairGroup.position.set(0, 0, -0.1);
-    scene.add(chairGroup);
-    
-    clock=new THREE.Clock();
-    setStatus('models/sample_a.vrm डाउनलोड हो रहा है…');
-    const loader=new GLTFLoader();
-    loader.register(parser=>new VRMLoaderPlugin(parser));
-    const gltf=await loader.loadAsync('./models/sample_a.vrm');
-    vrm=gltf.userData.vrm;
-    if(!vrm)throw new Error('फ़ाइल से VRM डेटा नहीं मिला।');
-    
-    if(VRMUtils && typeof VRMUtils.rotateVRM0==='function') VRMUtils.rotateVRM0(vrm);
-    scene.add(vrm.scene);
-
-    vrm.scene.traverse((node) => {
-      if (node.isMesh) {
-        node.castShadow = true;
-        node.receiveShadow = true;
-      }
-    });
-
-    const bone = name => vrm.humanoid?.getNormalizedBoneNode(name);
-    const poseBones = {
-      hips: bone('hips'), spine: bone('spine'), chest: bone('chest'),
-      neck: bone('neck'), head: bone('head'),
-      leftShoulder: bone('leftShoulder'), rightShoulder: bone('rightShoulder'),
-      leftUpper: bone('leftUpperArm'), rightUpper: bone('rightUpperArm'),
-      leftLower: bone('leftLowerArm'), rightLower: bone('rightLowerArm'),
-      leftHand: bone('leftHand'), rightHand: bone('rightHand'),
-      leftUpperLeg: bone('leftUpperLeg'), rightUpperLeg: bone('rightUpperLeg'),
-      leftLowerLeg: bone('leftLowerLeg'), rightLowerLeg: bone('rightLowerLeg'),
-      leftFoot: bone('leftFoot'), rightFoot: bone('rightFoot')
-    };
-    const poseBase = {};
-    for (const [key, node] of Object.entries(poseBones)) {
-      if (node) poseBase[key] = node.quaternion.clone();
-    }
-
-    const armNodes = {
-      leftUpper: poseBones.leftUpper, rightUpper: poseBones.rightUpper,
-      leftLower: poseBones.leftLower, rightLower: poseBones.rightLower,
-      leftHand: poseBones.leftHand, rightHand: poseBones.rightHand
-    };
-    const worldPos = node => { const v=new THREE.Vector3(); node.getWorldPosition(v); return v; };
-    
-    const aimSegment = (boneNode, childNode, targetWorld) => {
-      if(!boneNode||!childNode||!targetWorld||!boneNode.parent)return;
-      vrm.scene.updateMatrixWorld(true);
-      const origin=worldPos(boneNode), childPos=worldPos(childNode);
-      const currentDir=childPos.sub(origin);
-      const targetDir=targetWorld.clone().sub(origin);
-      if(currentDir.lengthSq()<1e-8||targetDir.lengthSq()<1e-8)return;
-      currentDir.normalize(); targetDir.normalize();
-      const delta=new THREE.Quaternion().setFromUnitVectors(currentDir,targetDir);
-      const currentWorld=boneNode.getWorldQuaternion(new THREE.Quaternion());
-      const desiredWorld=delta.multiply(currentWorld);
-      const parentWorld=boneNode.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
-      boneNode.quaternion.copy(parentWorld.multiply(desiredWorld));
-      boneNode.updateMatrixWorld(true);
-    };
-
-    // हाथों को गोद (Lap) में रखने का लॉजिक
-    applySeatedPose = (blend = 0, phase = 0) => {
-      const active=behaviorMode==='talk'||behaviorMode==='hum';
-      
-      for(const key of ['leftUpper','rightUpper','leftLower','rightLower','leftHand','rightHand']){
-        const node=armNodes[key], base=poseBase[key];
-        if(node&&base)node.quaternion.copy(base);
-      }
-      vrm.scene.updateMatrixWorld(true);
-      
-      const spineNode = poseBones.spine || poseBones.chest;
-      if(!spineNode)return;
-      
-      const spinePos = worldPos(spineNode);
-      
-      // गोद में हाथ रखने के लिए पोज़िशन
-      const front = 0.28; 
-      const down = -0.25; 
-      const motion = active ? Math.sin(phase) * 0.015 : 0;
-      
-      const leftTarget = spinePos.clone().add(new THREE.Vector3(-0.15 + motion, down, front));
-      const rightTarget = spinePos.clone().add(new THREE.Vector3(0.15 + motion, down, front));
-      
-      const leftShoulder=poseBones.leftShoulder||poseBones.leftUpper;
-      const rightShoulder=poseBones.rightShoulder||poseBones.rightUpper;
-      
-      const leftElbow=leftShoulder?worldPos(leftShoulder).add(new THREE.Vector3(-0.15,-0.15,0.05)):null;
-      const rightElbow=rightShoulder?worldPos(rightShoulder).add(new THREE.Vector3(0.15,-0.15,0.05)):null;
-      
-      aimSegment(poseBones.leftUpper,poseBones.leftLower,leftElbow);
-      aimSegment(poseBones.leftLower,poseBones.leftHand,leftTarget);
-      aimSegment(poseBones.rightUpper,poseBones.rightLower,rightElbow);
-      aimSegment(poseBones.rightLower,poseBones.rightHand,rightTarget);
-      
-      for(const [key,sign] of [['leftHand',1],['rightHand',-1]]){
-        const node=armNodes[key],base=poseBase[key];
-        if(node&&base){
-          const wiggle=active?Math.sin(phase+(sign>0?0:1))*0.015:0;
-          node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(
-            new THREE.Euler(0.2+wiggle, 0, sign*0.05,'XYZ')));
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@3.0.0/lib/three-vrm.module.js"
+            }
         }
-      }
-      vrm.scene.updateMatrixWorld(true);
-    };
+    </script>
 
-    // बैठने का पोज़ और ब्रीदिंग एनिमेशन
-    let bodyClock=0;
-    applyBodyPose = (delta, mode, phase) => {
-      bodyClock += delta;
-      
-      const breath = Math.sin(bodyClock * 1.5);
-      const idleX = breath * 0.015;
-      const idleZ = Math.sin(bodyClock * 0.8) * 0.01;
-      
-      const active=(mode==='talk'||mode==='hum');
-      const energy=mode==='hum'?1.0:(mode==='talk'?0.75:0.25);
-      
-      const nod=Math.sin(bodyClock*(mode==='hum'?3.0:2.0))*0.02*energy;
-      const sway=Math.sin(bodyClock*(mode==='hum'?2.0:1.35))*0.025*energy;
-      
-      const apply=(key,x,y,z)=>{
-        const node=poseBones[key],base=poseBase[key];
-        if(!node||!base)return;
-        node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')));
-      };
-      
-      // पैरों का सही पोज़ (सीटिंग)
-      apply('leftUpperLeg', 1.45, 0.05, -0.1); 
-      apply('rightUpperLeg', 1.45, -0.05, 0.1);
-      apply('leftLowerLeg', -1.4, 0, 0.05);
-      apply('rightLowerLeg', -1.4, 0, -0.05);
-      apply('leftFoot', 0.1, 0, 0);
-      apply('rightFoot', 0.1, 0, 0);
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 
-      // शरीर और सिर
-      apply('hips', 0, idleX*0.35, idleZ*0.25);
-      apply('spine', idleX+sway*0.4, 0, idleZ+sway*0.3);
-      apply('chest', idleX*0.5+sway*0.5, 0, nod*0.3);
-      apply('neck', nod*0.5, Math.sin(bodyClock*0.6)*0.015, 0);
-      
-      apply('head', nod + Math.sin(bodyClock*0.7)*0.01, 
-                     Math.sin(bodyClock*0.72)*0.03, 
-                     Math.sin(bodyClock*0.8)*0.015);
-                     
-      apply('leftShoulder',0,0,active?0.02*Math.sin(phase):idleZ);
-      apply('rightShoulder',0,0,active?-0.02*Math.sin(phase*0.8+1): -idleZ);
-    };
-    
-    frameModel(vrm.scene);
-    applySeatedPose(0,0);
-    applyBodyPose(0, 'idle', 0);
-    
-    setStatus('बैठा हुआ 3D Avatar तैयार है।');
-    animate();
-    
-    window.addEventListener('resize',()=>{
-      if(!renderer||!camera)return;
-      camera.aspect=Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight);
-      camera.updateProjectionMatrix();
-      renderer.setSize(stageEl.clientWidth,stageEl.clientHeight);
-    });
-  }catch(error){
-    console.error('Zoya avatar initialization failed:',error);
-    const message=error?.message||String(error);
-    setStatus('लोडिंग त्रुटि: '+message+' (जाँचें: इंटरनेट/CDN, WebGL, और models/sample_a.vrm)');
-  }
-}
-init();
-</script>
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        
+        // 1. सिनेमैटिक कैमरा (आपकी दूसरी इमेज जैसा फ्रेम)
+        const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.15, 2.8); // कैमरा थोड़ा दूर और सीधा
+        camera.lookAt(0, 1.0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        // टोन मैपिंग (रंगों को सॉफ्ट और रियलिस्टिक बनाने के लिए)
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+
+        // 2. सॉफ्ट लाइटिंग (चेहरा सफेद न दिखे इसके लिए)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        
+        const frontLight = new THREE.DirectionalLight(0xffeedd, 1.0);
+        frontLight.position.set(0, 2, 5); // सामने से लाइट
+        scene.add(frontLight);
+
+        const fillLight = new THREE.DirectionalLight(0xaabbff, 0.5);
+        fillLight.position.set(-2, 1, 2); // साइड से हल्की लाइट
+        scene.add(fillLight);
+
+        // 3. एक बेहतर चेयर का 3D मॉडल (कोड से)
+        const chairGroup = new THREE.Group();
+        const chairMat = new THREE.MeshStandardMaterial({ color: 0x3a3a4a, roughness: 0.8 });
+        const seatMat = new THREE.MeshStandardMaterial({ color: 0xdcdcdc, roughness: 0.9 }); // सॉफ्ट कुशन
+        
+        // चेयर की सीट
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.8), seatMat);
+        seat.position.y = 0.5;
+        chairGroup.add(seat);
+        
+        // चेयर की पीठ
+        const back = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.1), seatMat);
+        back.position.set(0, 0.9, -0.35);
+        chairGroup.add(back);
+
+        // चेयर के पैर
+        const legGeo = new THREE.BoxGeometry(0.1, 0.5, 0.1);
+        const leg1 = new THREE.Mesh(legGeo, chairMat); leg1.position.set(0.35, 0.25, 0.35);
+        const leg2 = new THREE.Mesh(legGeo, chairMat); leg2.position.set(-0.35, 0.25, 0.35);
+        const leg3 = new THREE.Mesh(legGeo, chairMat); leg3.position.set(0.35, 0.25, -0.35);
+        const leg4 = new THREE.Mesh(legGeo, chairMat); leg4.position.set(-0.35, 0.25, -0.35);
+        chairGroup.add(leg1, leg2, leg3, leg4);
+        
+        // चेयर को सीन में जोड़ें (थोड़ा पीछे)
+        chairGroup.position.z = -0.1;
+        scene.add(chairGroup);
+
+        // 4. मॉडल लोडर
+        const loader = new GLTFLoader();
+        loader.register((parser) => new VRMLoaderPlugin(parser));
+
+        // ⚠️ यहाँ अपना असली मॉडल डालें (जैसे 'zoya.vrm')
+        const modelURL = 'https://pixiv.github.io/three-vrm/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm'; 
+
+        let currentVrm = null;
+
+        loader.load(
+            modelURL,
+            (gltf) => {
+                document.getElementById('loading').style.display = 'none';
+                const model = gltf.scene;
+                scene.add(model);
+
+                if (gltf.userData.vrm) {
+                    const vrm = gltf.userData.vrm;
+                    currentVrm = vrm;
+                    
+                    VRMUtils.removeUnnecessaryVertices(gltf.scene);
+                    VRMUtils.combineSkeletons(gltf.scene);
+                    VRMUtils.rotateVRM0(vrm);
+
+                    // मॉडल को चेयर पर बैठाना
+                    model.position.y = 0.15; // मॉडल को थोड़ा ऊपर उठाएं ताकि चेयर पर बैठे
+
+                    // 🔥 पोज़ सेटिंग (हाथ गोद में और पैर सीधे) 🔥
+                    const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                    const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+                    const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+                    const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+                    
+                    const leftUpperLeg = vrm.humanoid.getNormalizedBoneNode('leftUpperLeg');
+                    const rightUpperLeg = vrm.humanoid.getNormalizedBoneNode('rightUpperLeg');
+
+                    if (leftUpperArm && rightUpperArm) {
+                        // हाथों को नीचे लाना (गोद में रखने के लिए)
+                        leftUpperArm.rotation.z = 1.3; 
+                        rightUpperArm.rotation.z = -1.3;
+                        leftUpperArm.rotation.x = 0.2; 
+                        rightUpperArm.rotation.x = 0.2;
+                        
+                        // कोहनी मोड़ना
+                        if (leftLowerArm && rightLowerArm) {
+                            leftLowerArm.rotation.y = -1.4; 
+                            rightLowerArm.rotation.y = 1.4;
+                            leftLowerArm.rotation.x = 0.4;
+                            rightLowerArm.rotation.x = 0.4;
+                        }
+                    }
+
+                    // पैरों को बैठने की पोज़ में लाना
+                    if (leftUpperLeg && rightUpperLeg) {
+                        leftUpperLeg.rotation.x = -1.4; // जांघ को 90 डिग्री मोड़ना
+                        rightUpperLeg.rotation.x = -1.4;
+                        
+                        // पैरों को थोड़ा पास लाना
+                        leftUpperLeg.rotation.z = -0.05;
+                        rightUpperLeg.rotation.z = 0.05;
+                    }
+                }
+            },
+            (progress) => console.log('लोड हो रहा है: ' + Math.round((progress.loaded / progress.total) * 100) + '%'),
+            (error) => {
+                console.error('मॉडल लोड करने में एरर:', error);
+                document.getElementById('loading').innerText = "मॉडल लोड नहीं हो पाया!";
+            }
+        );
+
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            if (currentVrm) currentVrm.update(delta);
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
 </body>
 </html>
