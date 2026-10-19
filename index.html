@@ -43,7 +43,7 @@ const messageEl=document.getElementById('message'),sendBtn=document.getElementBy
 let loadingNoticeTimer=null,THREE,GLTFLoader,VRMLoaderPlugin,VRMUtils;
 let vrm=null,renderer=null,scene=null,camera=null,clock=null;
 let utterance=null,speaking=false,mouthPhase=0,gesturePhase=0;
-let behaviorMode='idle',emotionMode='neutral',gestureMode='namaste';
+let behaviorMode='idle',emotionMode='neutral',gestureMode='idle';
 let audioCtx=null,melodyTimer=null,melodyNodes=[];
 let poseBones={},poseBase={},armNodes={},bodyClock=0;
 let applyCrossedPose=()=>{},applyBodyPose=()=>{};
@@ -113,20 +113,25 @@ function setupPose(){
   // हर फ्रेम पर मूल arm rotations बहाल करें, फिर हाथों को chest-target पर solve करें।
   for(const k of ['leftUpper','rightUpper','leftLower','rightLower','leftHand','rightHand'])if(armNodes[k]&&poseBase[k])armNodes[k].quaternion.copy(poseBase[k]);
   vrm.scene.updateMatrixWorld(true);const chestNode=poseBones.chest||poseBones.spine;if(!chestNode)return;const c=worldPos(chestNode),active=speaking||behaviorMode==='hum',wave=active?Math.sin(phase)*.012:Math.sin(phase*.35)*.002;
-  // Default idle: palms together at upper chest; namaste: slightly higher and closer.
-  let lx=-.045,rx=.045,ly=.035,ry=.035,lz=.245,rz=.245;
-  switch(gestureMode){case'idle':case'listening':case'namaste':case'apology':lx=-.018;rx=.018;ly=.055;ry=.055;lz=.285;rz=.285;break;case'thanks':lx=-.02;rx=.02;ly=.045;ry=.045;lz=.28;rz=.28;break;case'talk':lx=-.045+wave;rx=.045;ly=.085+Math.abs(Math.sin(phase))*.012;ry=.075;break;case'explain':lx=-.13;rx=.13;ly=.05+Math.abs(Math.sin(phase))*.02;ry=.05;break;case'point':lx=-.05;rx=.15;ly=.05;ry=.15;rz=.22;break;case'thinking':lx=-.04;rx=.12;ly=.06;ry=.22;rz=.22;break;case'happy':lx=-.08;rx=.08;ly=.14+Math.abs(Math.sin(phase))*.025;ry=.14+Math.abs(Math.sin(phase+.6))*.025;break;case'sad':lx=-.03;rx=.03;ly=.02;ry=.02;break;case'angry':lx=-.08;rx=.08;ly=.05;ry=.05;break;case'goodbye':lx=-.08;rx=.15;ly=.04;ry=.17+Math.sin(phase*1.8)*.03;break;}
+  // Default idle is now a सावधान/attention pose: arms down beside the torso.
+  // Namaste remains a separate gesture triggered by greeting words.
+  let lx=-.16,rx=.16,ly=-.42,ry=-.42,lz=.12,rz=.12;
+  switch(gestureMode){case'idle':
+    lx=-.16;rx=.16;ly=-.42;ry=-.42;lz=.12;rz=.12;break;
+  case'listening':lx=-.10;rx=.10;ly=-.12;ry=-.12;lz=.16;rz=.16;break;case'namaste':case'apology':lx=-.018;rx=.018;ly=.055;ry=.055;lz=.285;rz=.285;break;case'thanks':lx=-.02;rx=.02;ly=.045;ry=.045;lz=.28;rz=.28;break;case'talk':lx=-.045+wave;rx=.045;ly=.085+Math.abs(Math.sin(phase))*.012;ry=.075;break;case'explain':lx=-.13;rx=.13;ly=.05+Math.abs(Math.sin(phase))*.02;ry=.05;break;case'point':lx=-.05;rx=.15;ly=.05;ry=.15;rz=.22;break;case'thinking':lx=-.04;rx=.12;ly=.06;ry=.22;rz=.22;break;case'happy':lx=-.08;rx=.08;ly=.14+Math.abs(Math.sin(phase))*.025;ry=.14+Math.abs(Math.sin(phase+.6))*.025;break;case'sad':lx=-.03;rx=.03;ly=.02;ry=.02;break;case'angry':lx=-.08;rx=.08;ly=.05;ry=.05;break;case'goodbye':lx=-.08;rx=.15;ly=.04;ry=.17+Math.sin(phase*1.8)*.03;break;}
   const leftTarget=c.clone().add(new THREE.Vector3(lx+(active?wave:0),ly,lz)),rightTarget=c.clone().add(new THREE.Vector3(rx+(active?Math.sin(phase+.8)*.01:0),ry,rz));
   const ls=poseBones.leftShoulder||poseBones.leftUpper,rs=poseBones.rightShoulder||poseBones.rightUpper;
-  const le=ls?worldPos(ls).add(new THREE.Vector3(-.23,-.12,.12)):null,re=rs?worldPos(rs).add(new THREE.Vector3(.23,-.12,.12)):null;
+  const attention=(gestureMode==='idle');
+  const le=ls?worldPos(ls).add(new THREE.Vector3(attention?-.14:-.23,attention?-.16:-.12,attention?.04:.12)):null,re=rs?worldPos(rs).add(new THREE.Vector3(attention?.14:.23,attention?-.16:-.12,attention?.04:.12)):null;
   aim(poseBones.leftUpper,poseBones.leftLower,le);aim(poseBones.leftLower,poseBones.leftHand,leftTarget);aim(poseBones.rightUpper,poseBones.rightLower,re);aim(poseBones.rightLower,poseBones.rightHand,rightTarget);
-  for(const [k,sign] of [['leftHand',1],['rightHand',-1]]){const n=armNodes[k],base=poseBase[k];if(n&&base){const w=active?Math.sin(phase+(sign>0?0:1))*.006:0;const namaste=(gestureMode==='namaste'||gestureMode==='idle'||gestureMode==='listening'||gestureMode==='apology');
+  for(const [k,sign] of [['leftHand',1],['rightHand',-1]]){const n=armNodes[k],base=poseBase[k];if(n&&base){const w=active?Math.sin(phase+(sign>0?0:1))*.006:0;const namaste=(gestureMode==='namaste'||gestureMode==='apology');
     // Wrist rotation is deliberately mild; the hand targets are brought together at mid-chest.
     n.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(namaste?0.0+w:.04+w,namaste?-sign*0.20:0,namaste?-sign*0.04:(sign>0?.10:-.10)-sign*.035,'XYZ')))}}
   vrm.scene.updateMatrixWorld(true);
  };
  applyBodyPose=(delta,mode,phase)=>{bodyClock+=delta;const ix=Math.sin(bodyClock*1.15)*.012,iz=Math.sin(bodyClock*.82)*.009,active=mode==='talk'||mode==='hum',energy=mode==='hum'?1:mode==='talk'?.65:.18,nod=Math.sin(bodyClock*(mode==='hum'?3:2))*.02*energy,sway=Math.sin(bodyClock*(mode==='hum'?2:1.35))*.025*energy;
-  const set=(k,x,y,z)=>{const n=poseBones[k],b=poseBase[k];if(n&&b)n.quaternion.copy(b).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')))};set('hips',0,ix*.3,iz*.2);set('spine',ix+sway*.4,0,iz+sway*.3);set('chest',ix*.5+sway*.4,0,nod*.3);set('neck',nod*.6,Math.sin(bodyClock*.6)*.012,0);set('head',nod,Math.sin(bodyClock*.72)*.02,gestureMode==='thinking'?.08:gestureMode==='happy'?-0.03:0);
+  const set=(k,x,y,z)=>{const n=poseBones[k],b=poseBase[k];if(n&&b)n.quaternion.copy(b).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')))};
+  set('hips',0,ix*.3,iz*.2);set('spine',ix+sway*.4,0,iz+sway*.3);set('chest',ix*.5+sway*.4,0,nod*.3);set('neck',nod*.6,Math.sin(bodyClock*.6)*.012,0);set('head',nod,Math.sin(bodyClock*.72)*.02,gestureMode==='thinking'?.08:gestureMode==='happy'?-0.03:0);
   set('leftShoulder',0,0,active?.018*Math.sin(phase):iz);set('rightShoulder',0,0,active?-.018*Math.sin(phase*.8+1):-iz);
   const seated=(k,x,y,z)=>{const n=poseBones[k],b=poseBase[k];if(n&&b)n.quaternion.copy(b).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')))};
   seated('leftUpperLeg',-.92,.04,-.08);seated('rightUpperLeg',-.92,-.04,.08);seated('leftLowerLeg',1.22,0,.02);seated('rightLowerLeg',1.22,0,-.02);seated('leftFoot',-.18,0,0);seated('rightFoot',-.18,0,0);
