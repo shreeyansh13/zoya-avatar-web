@@ -15,436 +15,127 @@ main{max-width:680px;margin:auto;padding:12px;display:flex;flex-direction:column
 #stage{height:clamp(370px,62dvh,620px);position:relative;overflow:hidden;border:1px solid #30313a;border-radius:18px;background:radial-gradient(ellipse at 50% 35%,#292a3b,#12131a 70%)}
 #stage canvas{display:block;width:100%;height:100%}
 #loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:radial-gradient(ellipse at 50% 35%,#292a3b,#12131a 70%);color:#d9d9e8;text-align:center;padding:20px;z-index:2}
-#loading[hidden]{display:none}
-.spinner{width:34px;height:34px;border:3px solid #44465d;border-top-color:#7567ff;border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-#loadingText{font-size:14px;line-height:1.5}
+#loading[hidden]{display:none}.spinner{width:34px;height:34px;border:3px solid #44465d;border-top-color:#7567ff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}#loadingText{font-size:14px;line-height:1.5}
 #status{min-height:22px;color:#d0d0dc;font-size:14px;overflow-wrap:anywhere}
 textarea{width:100%;min-height:92px;resize:vertical;border:1px solid #393b49;border-radius:12px;padding:12px;color:white;background:#1b1c25;font:inherit}
 .buttons{display:flex;gap:10px}button{flex:1;padding:13px 10px;border:0;border-radius:12px;font:inherit;font-weight:700;cursor:pointer}
-#send{background:#7567ff;color:#fff}#stop{background:#30313a;color:#fff}button:disabled{opacity:.6}
-.note{font-size:12px;line-height:1.5;color:#a7a8b3}
+#send{background:#7567ff;color:#fff}#stop{background:#30313a;color:#fff}button:disabled{opacity:.6}.note{font-size:12px;line-height:1.5;color:#a7a8b3}
 </style>
 <script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
-    "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.min.js"
-  }
-}
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/","@pixiv/three-vrm":"https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.min.js"}}
 </script>
 </head>
 <body>
 <header>ZOYA AI · 3D AVATAR</header>
 <main>
-  <section id="stage" aria-label="Zoya 3D avatar"><div id="loading"><div class="spinner" aria-hidden="true"></div><div id="loadingText">ज़ोया का 3D अवतार लोड हो रहा है…</div></div></section>
-  <textarea id="message" placeholder="अपना संदेश हिंदी में लिखें…">नमस्ते ज़ोया, आज की तारीख क्या है?</textarea>
-  <div class="buttons"><button id="send">💬 पूछें और सुनें</button><button id="stop">⏹ रोकें</button></div>
-  <div class="buttons"><button id="humOriginal">🎵 मौलिक धुन</button><button id="humRequested">🎶 गुनगुनाएँ</button></div>
-  <div id="status" role="status">3D मॉड्यूल शुरू हो रहे हैं…</div>
-  <div class="note">यह 3D VRM बैठने की मुद्रा वाला परीक्षण संस्करण है। Gemini /chat backend और Android Call Flow नहीं बदले गए। बातचीत में browser speech synthesis और गुनगुनाने में locally generated melody tones उपयोग होते हैं; यह अभी मानव-जैसी humming voice या copyrighted song recording नहीं है।</div>
+<section id="stage" aria-label="Zoya 3D avatar"><div id="loading"><div class="spinner" aria-hidden="true"></div><div id="loadingText">ज़ोया का 3D अवतार लोड हो रहा है…</div></div></section>
+<textarea id="message" placeholder="अपना संदेश हिंदी में लिखें…">नमस्ते ज़ोया, आज की तारीख क्या है?</textarea>
+<div class="buttons"><button id="send">💬 पूछें और सुनें</button><button id="stop">⏹ रोकें</button></div>
+<div class="buttons"><button id="humOriginal">🎵 मौलिक धुन</button><button id="humRequested">🎶 गुनगुनाएँ</button></div>
+<div id="status" role="status">3D मॉड्यूल शुरू हो रहे हैं…</div>
+<div class="note">यह 3D VRM परीक्षण संस्करण है। Gemini /chat backend और Android Call Flow में बदलाव नहीं किया गया। बातचीत में browser speech synthesis और गुनगुनाने में locally generated melody tones उपयोग होते हैं।</div>
 </main>
 <script type="module">
-const statusEl=document.getElementById('status');
-const stageEl=document.getElementById('stage');
-const loadingEl=document.getElementById('loading');
-const loadingTextEl=document.getElementById('loadingText');
-let loadingNoticeTimer=null;
-function showLoading(message){if(loadingTextEl)loadingTextEl.textContent=message;if(loadingEl)loadingEl.hidden=false;}
-function hideLoading(){if(loadingNoticeTimer){clearTimeout(loadingNoticeTimer);loadingNoticeTimer=null;}if(loadingEl)loadingEl.hidden=true;}
-const messageEl=document.getElementById('message');
-const sendBtn=document.getElementById('send');
-let THREE, GLTFLoader, VRMLoaderPlugin, VRMUtils;
+const statusEl=document.getElementById('status'),stageEl=document.getElementById('stage');
+const loadingEl=document.getElementById('loading'),loadingTextEl=document.getElementById('loadingText');
+const messageEl=document.getElementById('message'),sendBtn=document.getElementById('send');
+let loadingNoticeTimer=null,THREE,GLTFLoader,VRMLoaderPlugin,VRMUtils;
 let vrm=null,renderer=null,scene=null,camera=null,clock=null;
-let utterance=null,speaking=false,mouthPhase=0,rafId=0;
-let gesturePhase=0, gestureBlend=0, applyCrossedPose=()=>{};
-let behaviorMode='idle', audioCtx=null, melodyTimer=null, melodyNodes=[];
-let applyBodyPose=()=>{};
-let emotionMode='neutral';
-let gestureMode='idle';
+let utterance=null,speaking=false,mouthPhase=0,gesturePhase=0;
+let behaviorMode='idle',emotionMode='neutral',gestureMode='idle';
+let audioCtx=null,melodyTimer=null,melodyNodes=[];
+let poseBones={},poseBase={},armNodes={},bodyClock=0;
+let applyCrossedPose=()=>{},applyBodyPose=()=>{};
+function setStatus(s){statusEl.textContent=s}
+function showLoading(s){loadingTextEl.textContent=s;loadingEl.hidden=false}
+function hideLoading(){if(loadingNoticeTimer){clearTimeout(loadingNoticeTimer);loadingNoticeTimer=null}loadingEl.hidden=true}
 function chooseBehavior(text=''){
-  const t=String(text).toLowerCase();
-  if(/नमस्ते|प्रणाम|hello|नमस्कार/.test(t)){gestureMode='namaste';return;}
-  if(/धन्यवाद|शुक्रिया|आभार|thank you/.test(t)){gestureMode='thanks';return;}
-  if(/माफ|क्षमा|sorry|गलती/.test(t)){gestureMode='apology';return;}
-  if(/क्यों|कैसे|सोच|विचार|पता नहीं|🤔/.test(t)){gestureMode='thinking';return;}
-  if(/वाह|शानदार|खुश|बधाई|अच्छी खबर|मज़ेदार|मजेदार|😂|😄/.test(t)){gestureMode='happy';return;}
-  if(/अलविदा|बाय|फिर मिलेंगे|bye/.test(t)){gestureMode='goodbye';return;}
-  if(/समझाइ|मतलब|उदाहरण|बताता|बताती|देखिए|पहला|दूसरा/.test(t)){gestureMode='explain';return;}
-  if(/यहाँ|वहाँ|देखो|ध्यान दें|इशारा|यह है/.test(t)){gestureMode='point';return;}
-  if(/उदास|दुख|अफसोस|दर्द|😭|😢/.test(t)){gestureMode='sad';return;}
-  if(/गुस्सा|नाराज़|नाराज|चेतावनी|खतरा|😠|😡/.test(t)){gestureMode='angry';return;}
-  if(/सुन रही|बताइए|आप कहिए|क्या हुआ/.test(t)){gestureMode='listening';return;}
-  gestureMode='talk';
+ const t=String(text).toLowerCase();
+ if(/नमस्ते|प्रणाम|hello|नमस्कार/.test(t)){gestureMode='namaste';return}
+ if(/धन्यवाद|शुक्रिया|आभार|thank you/.test(t)){gestureMode='thanks';return}
+ if(/माफ|क्षमा|sorry|गलती/.test(t)){gestureMode='apology';return}
+ if(/क्यों|कैसे|सोच|विचार|पता नहीं|🤔/.test(t)){gestureMode='thinking';return}
+ if(/वाह|शानदार|खुश|बधाई|अच्छी खबर|मज़ेदार|मजेदार|😂|😄/.test(t)){gestureMode='happy';return}
+ if(/अलविदा|बाय|फिर मिलेंगे|bye/.test(t)){gestureMode='goodbye';return}
+ if(/समझाइ|मतलब|उदाहरण|बताता|बताती|देखिए|पहला|दूसरा/.test(t)){gestureMode='explain';return}
+ if(/यहाँ|वहाँ|देखो|ध्यान दें|इशारा|यह है/.test(t)){gestureMode='point';return}
+ if(/उदास|दुख|अफसोस|दर्द|😭|😢/.test(t)){gestureMode='sad';return}
+ if(/गुस्सा|नाराज़|नाराज|चेतावनी|खतरा|😠|😡/.test(t)){gestureMode='angry';return}
+ if(/सुन रही|बताइए|आप कहिए|क्या हुआ/.test(t)){gestureMode='listening';return}
+ gestureMode='talk';
 }
-
-function setStatus(message){statusEl.textContent=message;}
 function stopVoice(){
-  if('speechSynthesis' in window) window.speechSynthesis.cancel();
-  speaking=false; utterance=null; sendBtn.disabled=false;
-  if(melodyTimer){clearTimeout(melodyTimer);melodyTimer=null;}
-  for(const node of melodyNodes){try{node.stop?.();}catch(_){} try{node.disconnect?.();}catch(_){}}
-  melodyNodes=[];
-  behaviorMode='idle';
-  gestureMode='idle';
-  if(vrm?.expressionManager) {
-    for(const name of ['aa','ih','ou']) {
-      try{vrm.expressionManager.setValue(name,0)}catch(_){}
-    }
-  }
+ if('speechSynthesis' in window)window.speechSynthesis.cancel();speaking=false;utterance=null;sendBtn.disabled=false;
+ if(melodyTimer){clearTimeout(melodyTimer);melodyTimer=null}
+ for(const n of melodyNodes){try{n.stop?.()}catch(_){}try{n.disconnect?.()}catch(_){}}melodyNodes=[];
+ behaviorMode='idle';gestureMode='idle';emotionMode='neutral';
+ if(vrm?.expressionManager)for(const n of ['aa','ih','ou'])try{vrm.expressionManager.setValue(n,0)}catch(_){}
 }
 function speak(text){
-  if(!('speechSynthesis' in window)){setStatus('इस ब्राउज़र में आवाज़ उपलब्ध नहीं है। Chrome में खोलकर जाँचें।');sendBtn.disabled=false;return;}
-  stopVoice();
-  chooseBehavior(text);
-  emotionMode = /हाहा|मज़ेदार|मजेदार|हँस|हंस|खुश|बहुत अच्छा|वाह|शानदार|जोक|😂|😄|😊/i.test(text) ? 'happy' : /दुख|दुखी|माफ़|माफ|अफसोस|उदास|रोना|दर्द|क्षमा|😢|😭/i.test(text) ? 'sad' : /गुस्सा|नाराज़|नाराज|गलत|चेतावनी|खतरा|क्रोध|😠|😡/i.test(text) ? 'angry' : /क्या\?|क्यों|कैसे|सच में|वाकई|अचानक|हैरान|आश्चर्य|😮|🤔/i.test(text) ? 'surprised' : 'neutral';
-  utterance=new SpeechSynthesisUtterance(text);
-  utterance.lang='hi-IN'; utterance.rate=.94; utterance.pitch=1.02;
-  utterance.onstart=()=>{speaking=true;behaviorMode='talk';setStatus('ज़ोया बोल रही है…');};
-  utterance.onend=()=>{speaking=false;behaviorMode='idle';gestureMode='idle';emotionMode='neutral';setStatus('जवाब पूरा हुआ।');};
-  utterance.onerror=(event)=>{speaking=false;behaviorMode='idle';sendBtn.disabled=false;setStatus('आवाज़ की त्रुटि: '+(event.error||'speech error'));};
-  window.speechSynthesis.speak(utterance);
+ if(!('speechSynthesis'in window)){setStatus('इस ब्राउज़र में आवाज़ उपलब्ध नहीं है। Chrome में खोलकर जाँचें।');sendBtn.disabled=false;return}
+ stopVoice();chooseBehavior(text);
+ emotionMode=/हाहा|मज़ेदार|मजेदार|हँस|हंस|खुश|बहुत अच्छा|वाह|शानदार|जोक|😂|😄|😊/i.test(text)?'happy':/दुख|दुखी|माफ़|माफ|अफसोस|उदास|रोना|दर्द|क्षमा|😢|😭/i.test(text)?'sad':/गुस्सा|नाराज़|नाराज|गलत|चेतावनी|खतरा|क्रोध|😠|😡/i.test(text)?'angry':/क्या\?|क्यों|कैसे|सच में|वाकई|अचानक|हैरान|आश्चर्य|😮|🤔/i.test(text)?'surprised':'neutral';
+ utterance=new SpeechSynthesisUtterance(text);utterance.lang='hi-IN';utterance.rate=.94;utterance.pitch=1.02;
+ utterance.onstart=()=>{speaking=true;behaviorMode='talk';setStatus('ज़ोया बोल रही है…')};
+ utterance.onend=()=>{speaking=false;behaviorMode='idle';gestureMode='idle';emotionMode='neutral';setStatus('जवाब पूरा हुआ।')};
+ utterance.onerror=e=>{speaking=false;behaviorMode='idle';sendBtn.disabled=false;setStatus('आवाज़ की त्रुटि: '+(e.error||'speech error'))};window.speechSynthesis.speak(utterance);
 }
 async function askBackend(userText){
-  setStatus('Gemini से जवाब माँगा जा रहा है… पहली request में backend जागने के कारण थोड़ा समय लग सकता है।');
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25000);
-  let response;
-  try {
-    response = await fetch('https://zoya-backend-ctr8.onrender.com/chat',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:userText}),
-      signal: controller.signal
-    });
-  } catch (err) {
-    if (err?.name === 'AbortError') {
-      throw new Error('25 सेकंड में जवाब नहीं आया। Backend cold start या Gemini में देरी हो सकती है।');
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-  if(!response.ok) throw new Error('Backend HTTP '+response.status);
-  const data=await response.json();
-  const answer=typeof data==='string'?data:
-    (data.reply??data.response??data.answer??data.text??data.message??data.output);
-  if(typeof answer!=='string'||!answer.trim()){
-    throw new Error('Backend से जवाब मिला, लेकिन response format पहचाना नहीं गया।');
-  }
-  return answer.trim();
+ setStatus('Gemini से जवाब माँगा जा रहा है…');const controller=new AbortController(),timeoutId=setTimeout(()=>controller.abort(),25000);let response;
+ try{response=await fetch('https://zoya-backend-ctr8.onrender.com/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:userText}),signal:controller.signal})}
+ catch(e){if(e?.name==='AbortError')throw new Error('25 सेकंड में जवाब नहीं आया। Backend cold start या Gemini में देरी हो सकती है।');throw e}
+ finally{clearTimeout(timeoutId)}
+ if(!response.ok)throw new Error('Backend HTTP '+response.status);const data=await response.json();
+ const answer=typeof data==='string'?data:(data.reply??data.response??data.answer??data.text??data.message??data.output);
+ if(typeof answer!=='string'||!answer.trim())throw new Error('Backend से जवाब मिला, लेकिन response format पहचाना नहीं गया।');return answer.trim();
 }
-
 function playMelody(mode='original'){
-  stopVoice();
-  const AudioContextClass=window.AudioContext||window.webkitAudioContext;
-  if(!AudioContextClass){setStatus('इस ब्राउज़र में audio generation उपलब्ध नहीं है।');return;}
-  audioCtx=audioCtx||new AudioContextClass();
-  audioCtx.resume().catch(()=>{});
-  behaviorMode='hum'; speaking=true;
-  const original=[392,440,523.25,440,392,329.63,349.23,392];
-  const requested=[523.25,587.33,659.25,587.33,523.25,440,392,440];
-  const notes=mode==='original'?original:requested;
-  let index=0;
-  setStatus(mode==='original'?'ज़ोया अपनी मौलिक धुन गुनगुना रही है…':'ज़ोया एक छोटी धुन गुनगुना रही है…');
-  const playNote=()=>{
-    if(behaviorMode!=='hum')return;
-    const now=audioCtx.currentTime;
-    const osc=audioCtx.createOscillator();
-    const overtone=audioCtx.createOscillator();
-    const gain=audioCtx.createGain();
-    const mix=audioCtx.createGain();
-    osc.type='sine'; osc.frequency.value=notes[index%notes.length];
-    overtone.type='triangle'; overtone.frequency.value=notes[index%notes.length]*2;
-    gain.gain.setValueAtTime(0.0001,now);
-    gain.gain.exponentialRampToValueAtTime(0.055,now+0.04);
-    gain.gain.setTargetAtTime(0.0001,now+0.22,0.09);
-    mix.gain.value=0.22;
-    osc.connect(gain); overtone.connect(mix); mix.connect(gain); gain.connect(audioCtx.destination);
-    osc.start(now); overtone.start(now);
-    osc.stop(now+0.48); overtone.stop(now+0.48);
-    melodyNodes.push(osc,overtone,gain,mix);
-    index++;
-    melodyTimer=setTimeout(playNote,360);
-  };
-  playNote();
+ stopVoice();const AC=window.AudioContext||window.webkitAudioContext;if(!AC){setStatus('इस ब्राउज़र में audio generation उपलब्ध नहीं है।');return}
+ audioCtx=audioCtx||new AC();audioCtx.resume().catch(()=>{});behaviorMode='hum';speaking=true;
+ const original=[392,440,523.25,440,392,329.63,349.23,392],requested=[523.25,587.33,659.25,587.33,523.25,440,392,440],notes=mode==='original'?original:requested;let i=0;
+ setStatus(mode==='original'?'ज़ोया अपनी मौलिक धुन गुनगुना रही है…':'ज़ोया एक छोटी धुन गुनगुना रही है…');
+ const play=()=>{if(behaviorMode!=='hum')return;const now=audioCtx.currentTime,o=audioCtx.createOscillator(),o2=audioCtx.createOscillator(),g=audioCtx.createGain(),mix=audioCtx.createGain();o.type='sine';o.frequency.value=notes[i%notes.length];o2.type='triangle';o2.frequency.value=notes[i%notes.length]*2;g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(.055,now+.04);g.gain.setTargetAtTime(.0001,now+.22,.09);mix.gain.value=.22;o.connect(g);o2.connect(mix);mix.connect(g);g.connect(audioCtx.destination);o.start(now);o2.start(now);o.stop(now+.48);o2.stop(now+.48);melodyNodes.push(o,o2,g,mix);i++;melodyTimer=setTimeout(play,360)};play();
 }
 document.getElementById('humOriginal').addEventListener('click',()=>playMelody('original'));
 document.getElementById('humRequested').addEventListener('click',()=>playMelody('requested'));
-
-sendBtn.addEventListener('click',async()=>{
-  const question=messageEl.value.trim();
-  if(!question){setStatus('पहले संदेश लिखें।');return;}
-  stopVoice(); sendBtn.disabled=true;
-  try{
-    const answer=await askBackend(question);
-    messageEl.value=answer;
-    chooseBehavior(question+' '+answer);
-    speak(answer);
-  }catch(error){
-    const msg=error?.message||'अज्ञात नेटवर्क त्रुटि';
-    if (error instanceof TypeError || /fetch|network|failed to fetch/i.test(msg)) {
-      setStatus('AI कनेक्शन ब्लॉक हुआ: यह CORS/preflight या नेटवर्क समस्या लगती है। Backend health running होने पर भी backend को इस वेबसाइट के origin की अनुमति देनी होगी; frontend अकेले CORS bypass नहीं कर सकता।');
-    } else {
-      setStatus('Gemini कनेक्शन असफल: '+msg+'. Backend में कोई बदलाव नहीं किया गया।');
-    }
-  }finally{sendBtn.disabled=false;}
-});
-document.getElementById('stop').addEventListener('click',()=>{
-  stopVoice();setStatus('आवाज़ रोक दी गई; शरीर आराम की स्थिति में लौट रहा है।');
-});
-window.addEventListener('pagehide',stopVoice);
-
-function animate(){
-  rafId=requestAnimationFrame(animate);
-  if(!renderer||!scene||!camera)return;
-  const delta=clock.getDelta();
-  if(vrm){
-    vrm.update(delta);
-    const targetBlend = speaking ? 1 : 0;
-    gestureBlend += (targetBlend - gestureBlend) * Math.min(1, delta * 3.5);
-    if (speaking) gesturePhase += delta * 5.0;
-    // Apply torso/head animation first, then solve the arms so shoulder motion
-    // does not overwrite the final hand pose. This call was missing in the live build.
-    try{applyBodyPose(delta, behaviorMode, gesturePhase);}catch(_){}
-    try{applyCrossedPose(gestureBlend, gesturePhase);}catch(_){}
-    if(vrm.expressionManager){
-      let amount=0;
-      if(speaking){mouthPhase+=delta*14;amount=.12+Math.abs(Math.sin(mouthPhase))*.38;}
-      try{vrm.expressionManager.setValue('aa',amount);}catch(_){}
-      // Use only expressions supported by the loaded VRM; unsupported names are ignored.
-      const emotionNames=['happy','sad','angry','surprised','relaxed'];
-      for(const name of emotionNames){
-        try{vrm.expressionManager.setValue(name, name===emotionMode ? (speaking ? 0.48 : 0.28) : 0);}catch(_){}
-      }
-    }
-  }
-  renderer.render(scene,camera);
+sendBtn.addEventListener('click',async()=>{const q=messageEl.value.trim();if(!q){setStatus('पहले संदेश लिखें।');return}stopVoice();sendBtn.disabled=true;try{const a=await askBackend(q);messageEl.value=a;chooseBehavior(q+' '+a);speak(a)}catch(e){const m=e?.message||'अज्ञात नेटवर्क त्रुटि';if(e instanceof TypeError||/fetch|network|failed to fetch/i.test(m))setStatus('AI कनेक्शन असफल: नेटवर्क/CORS जाँचें। Backend में कोई बदलाव नहीं किया गया।');else setStatus('Gemini कनेक्शन असफल: '+m+'. Backend में कोई बदलाव नहीं किया गया।')}finally{sendBtn.disabled=false}});
+document.getElementById('stop').addEventListener('click',()=>{stopVoice();setStatus('आवाज़ रोक दी गई; हाथ छाती के सामने आराम की स्थिति में लौट रहे हैं।')});window.addEventListener('pagehide',stopVoice);
+function animate(){requestAnimationFrame(animate);if(!renderer||!scene||!camera)return;const d=clock.getDelta();if(vrm){vrm.update(d);gesturePhase+=d*(speaking||behaviorMode==='hum'?5:0.6);try{applyBodyPose(d,behaviorMode,gesturePhase)}catch(_){}try{applyCrossedPose(gesturePhase)}catch(_){}if(vrm.expressionManager){let amount=0;if(speaking){mouthPhase+=d*14;amount=.12+Math.abs(Math.sin(mouthPhase))*.38}try{vrm.expressionManager.setValue('aa',amount)}catch(_){}for(const n of ['happy','sad','angry','surprised','relaxed'])try{vrm.expressionManager.setValue(n,n===emotionMode?(speaking?.48:.28):0)}catch(_){}}}renderer.render(scene,camera)}
+function frameModel(model){model.updateMatrixWorld(true);const bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3()),center=bounds.getCenter(new THREE.Vector3());if(!Number.isFinite(size.y)||size.y<=0)throw new Error('मॉडल की ऊँचाई पढ़ नहीं पाई।');const scale=1.8/size.y;model.scale.setScalar(scale);model.position.x-=center.x*scale;model.position.y-=bounds.min.y*scale;model.position.z-=center.z*scale;model.updateMatrixWorld(true);camera.position.set(0,1.25,1.75);camera.lookAt(0,1.35,0);camera.updateProjectionMatrix()}
+function worldPos(node){return new THREE.Vector3().setFromMatrixPosition(node.matrixWorld)}
+function setupPose(){
+ const get=n=>vrm.humanoid?.getNormalizedBoneNode(n);poseBones={hips:get('hips'),spine:get('spine'),chest:get('chest'),neck:get('neck'),head:get('head'),leftShoulder:get('leftShoulder'),rightShoulder:get('rightShoulder'),leftUpper:get('leftUpperArm'),rightUpper:get('rightUpperArm'),leftLower:get('leftLowerArm'),rightLower:get('rightLowerArm'),leftHand:get('leftHand'),rightHand:get('rightHand'),leftUpperLeg:get('leftUpperLeg'),rightUpperLeg:get('rightUpperLeg'),leftLowerLeg:get('leftLowerLeg'),rightLowerLeg:get('rightLowerLeg'),leftFoot:get('leftFoot'),rightFoot:get('rightFoot')};
+ poseBase={};for(const [k,n] of Object.entries(poseBones))if(n)poseBase[k]=n.quaternion.clone();armNodes={leftUpper:poseBones.leftUpper,rightUpper:poseBones.rightUpper,leftLower:poseBones.leftLower,rightLower:poseBones.rightLower,leftHand:poseBones.leftHand,rightHand:poseBones.rightHand};
+ const aim=(node,child,target)=>{if(!node||!child||!target||!node.parent)return;vrm.scene.updateMatrixWorld(true);const origin=worldPos(node),cur=worldPos(child).sub(origin),dest=target.clone().sub(origin);if(cur.lengthSq()<1e-8||dest.lengthSq()<1e-8)return;cur.normalize();dest.normalize();const delta=new THREE.Quaternion().setFromUnitVectors(cur,dest),world=node.getWorldQuaternion(new THREE.Quaternion()),desired=delta.multiply(world),parentInv=node.parent.getWorldQuaternion(new THREE.Quaternion()).invert();node.quaternion.copy(parentInv.multiply(desired));node.updateMatrixWorld(true)};
+ applyCrossedPose=phase=>{
+  // हर फ्रेम पर मूल arm rotations बहाल करें, फिर हाथों को chest-target पर solve करें।
+  for(const k of ['leftUpper','rightUpper','leftLower','rightLower','leftHand','rightHand'])if(armNodes[k]&&poseBase[k])armNodes[k].quaternion.copy(poseBase[k]);
+  vrm.scene.updateMatrixWorld(true);const chestNode=poseBones.chest||poseBones.spine;if(!chestNode)return;const c=worldPos(chestNode),active=speaking||behaviorMode==='hum',wave=active?Math.sin(phase)*.012:Math.sin(phase*.35)*.002;
+  // Default idle: palms together at upper chest; namaste: slightly higher and closer.
+  let lx=-.035,rx=.035,ly=.10,ry=.10,lz=.245,rz=.245;
+  switch(gestureMode){case'idle':case'listening':lx=-.025;rx=.025;ly=.075;ry=.075;lz=.255;rz=.255;break;case'namaste':case'apology':lx=-.018;rx=.018;ly=.14;ry=.14;lz=.275;rz=.275;break;case'thanks':lx=-.025;rx=.025;ly=.10;ry=.10;lz=.28;rz=.28;break;case'talk':lx=-.045+wave;rx=.045;ly=.085+Math.abs(Math.sin(phase))*.012;ry=.075;break;case'explain':lx=-.13;rx=.13;ly=.05+Math.abs(Math.sin(phase))*.02;ry=.05;break;case'point':lx=-.05;rx=.15;ly=.05;ry=.15;rz=.22;break;case'thinking':lx=-.04;rx=.12;ly=.06;ry=.22;rz=.22;break;case'happy':lx=-.08;rx=.08;ly=.14+Math.abs(Math.sin(phase))*.025;ry=.14+Math.abs(Math.sin(phase+.6))*.025;break;case'sad':lx=-.03;rx=.03;ly=.02;ry=.02;break;case'angry':lx=-.08;rx=.08;ly=.05;ry=.05;break;case'goodbye':lx=-.08;rx=.15;ly=.04;ry=.17+Math.sin(phase*1.8)*.03;break;}
+  const leftTarget=c.clone().add(new THREE.Vector3(lx+(active?wave:0),ly,lz)),rightTarget=c.clone().add(new THREE.Vector3(rx+(active?Math.sin(phase+.8)*.01:0),ry,rz));
+  const ls=poseBones.leftShoulder||poseBones.leftUpper,rs=poseBones.rightShoulder||poseBones.rightUpper;
+  const le=ls?worldPos(ls).add(new THREE.Vector3(-.13,-.07,.10)):null,re=rs?worldPos(rs).add(new THREE.Vector3(.13,-.07,.10)):null;
+  aim(poseBones.leftUpper,poseBones.leftLower,le);aim(poseBones.leftLower,poseBones.leftHand,leftTarget);aim(poseBones.rightUpper,poseBones.rightLower,re);aim(poseBones.rightLower,poseBones.rightHand,rightTarget);
+  for(const [k,sign] of [['leftHand',1],['rightHand',-1]]){const n=armNodes[k],base=poseBase[k];if(n&&base){const w=active?Math.sin(phase+(sign>0?0:1))*.012:0;n.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(.04+w,0,(sign>0?.10:-.10)-sign*.035,'XYZ')))}}
+  vrm.scene.updateMatrixWorld(true);
+ };
+ applyBodyPose=(delta,mode,phase)=>{bodyClock+=delta;const ix=Math.sin(bodyClock*1.15)*.012,iz=Math.sin(bodyClock*.82)*.009,active=mode==='talk'||mode==='hum',energy=mode==='hum'?1:mode==='talk'?.65:.18,nod=Math.sin(bodyClock*(mode==='hum'?3:2))*.02*energy,sway=Math.sin(bodyClock*(mode==='hum'?2:1.35))*.025*energy;
+  const set=(k,x,y,z)=>{const n=poseBones[k],b=poseBase[k];if(n&&b)n.quaternion.copy(b).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')))};
+  set('hips',0,ix*.3,iz*.2);set('spine',ix+sway*.4,0,iz+sway*.3);set('chest',ix*.5+sway*.4,0,nod*.3);set('neck',nod*.6,Math.sin(bodyClock*.6)*.012,0);set('head',nod,Math.sin(bodyClock*.72)*.02,gestureMode==='thinking'?.08:gestureMode==='happy'?-0.03:0);
+  set('leftShoulder',0,0,active?.018*Math.sin(phase):iz);set('rightShoulder',0,0,active?-.018*Math.sin(phase*.8+1):-iz);
+  const seated=(k,x,y,z)=>{const n=poseBones[k],b=poseBase[k];if(n&&b)n.quaternion.copy(b).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')))};
+  seated('leftUpperLeg',-.92,.04,-.08);seated('rightUpperLeg',-.92,-.04,.08);seated('leftLowerLeg',1.22,0,.02);seated('rightLowerLeg',1.22,0,-.02);seated('leftFoot',-.18,0,0);seated('rightFoot',-.18,0,0);
+ };
 }
-function frameModel(model){
-  model.updateMatrixWorld(true);
-  const bounds=new THREE.Box3().setFromObject(model);
-  const size=bounds.getSize(new THREE.Vector3());
-  const center=bounds.getCenter(new THREE.Vector3());
-  if(!Number.isFinite(size.y)||size.y<=0) throw new Error('मॉडल की ऊँचाई पढ़ नहीं पाई।');
-  // Scale to a consistent humanoid height and center its body around the camera target.
-  const scale=1.8/size.y;
-  model.scale.setScalar(scale);
-  model.position.x-=center.x*scale;
-  model.position.y-=bounds.min.y*scale;
-  model.position.z-=center.z*scale;
-  model.updateMatrixWorld(true);
-  // Seated portrait framing: include head, torso, lap and chair seat.
-  camera.position.set(0,1.25,1.75);
-  camera.lookAt(0,1.35,0);
-  camera.updateProjectionMatrix();
-}
-async function init(){
-  const initStartedAt=performance.now();
-  showLoading('ज़ोया का 3D अवतार लोड हो रहा है…');
-  setStatus('3D libraries डाउनलोड हो रही हैं…');
-  // 5 सेकंड के बाद उपयोगकर्ता को स्पष्ट स्थिति दिखाएँ; वास्तविक लोडिंग जारी रहती है।
-  loadingNoticeTimer=setTimeout(()=>{
-    if(!vrm){
-      showLoading('अवतार तैयार हो रहा है… पहली बार डाउनलोड में 5 सेकंड से अधिक लग सकते हैं। कृपया पेज खुला रखें।');
-      setStatus('3D लोडिंग जारी है… धीमे नेटवर्क पर पहली बार थोड़ा अधिक समय लग सकता है।');
-    }
-  },5000);
-  try{
-    // Import errors are caught here, instead of leaving the page stuck at the initial status.
-    const imports=await Promise.all([
-      import('three'),
-      import('three/addons/loaders/GLTFLoader.js'),
-      import('@pixiv/three-vrm')
-    ]);
-    [THREE,{GLTFLoader},{VRMLoaderPlugin,VRMUtils}]=imports;
-    setStatus('3D renderer शुरू हो रहा है…');
-    scene=new THREE.Scene();
-    scene.background=new THREE.Color(0x171823);
-    camera=new THREE.PerspectiveCamera(30,Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight),.1,100);
-    renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));
-    renderer.setSize(stageEl.clientWidth,stageEl.clientHeight);
-    renderer.outputColorSpace=THREE.SRGBColorSpace;
-    stageEl.appendChild(renderer.domElement);
-    scene.add(new THREE.HemisphereLight(0xffffff,0x62627b,2));
-    const key=new THREE.DirectionalLight(0xffffff,2);key.position.set(1,3,4);scene.add(key);
-    const fill=new THREE.DirectionalLight(0xa9b8ff,.7);fill.position.set(-3,2,1);scene.add(fill);
-    // No chair geometry: keep the VRM avatar unobstructed.
-    clock=new THREE.Clock();
-    setStatus('models/sample_a.vrm डाउनलोड हो रहा है…');
-    const loader=new GLTFLoader();
-    loader.register(parser=>new VRMLoaderPlugin(parser));
-    const gltf=await loader.loadAsync('./models/sample_a.vrm');
-    vrm=gltf.userData.vrm;
-    if(!vrm)throw new Error('फ़ाइल से VRM डेटा नहीं मिला।');
-    // Compatibility guard in case the utility is absent in a loaded package build.
-    if(VRMUtils && typeof VRMUtils.rotateVRM0==='function') VRMUtils.rotateVRM0(vrm);
-    scene.add(vrm.scene);
-
-    // Natural bent-arm pose with expressive, speech-synced gestures.
-    // Use normalized VRM bones and preserve their authored rest rotations.
-    const bone = name => vrm.humanoid?.getNormalizedBoneNode(name);
-    const poseBones = {
-      hips: bone('hips'), spine: bone('spine'), chest: bone('chest'),
-      neck: bone('neck'), head: bone('head'),
-      leftShoulder: bone('leftShoulder'), rightShoulder: bone('rightShoulder'),
-      leftUpper: bone('leftUpperArm'), rightUpper: bone('rightUpperArm'),
-      leftLower: bone('leftLowerArm'), rightLower: bone('rightLowerArm'),
-      leftHand: bone('leftHand'), rightHand: bone('rightHand'),
-      leftUpperLeg: bone('leftUpperLeg'), rightUpperLeg: bone('rightUpperLeg'),
-      leftLowerLeg: bone('leftLowerLeg'), rightLowerLeg: bone('rightLowerLeg'),
-      leftFoot: bone('leftFoot'), rightFoot: bone('rightFoot')
-    };const poseBase = {};
-    for (const [key, node] of Object.entries(poseBones)) {
-      if (node) poseBase[key] = node.quaternion.clone();
-    }
-
-    // Chest pose via world-space two-segment IK rather than guessed Euler angles.
-    // This aims the actual upper-arm and forearm segments toward chest targets.
-    const armNodes = {
-      leftUpper: poseBones.leftUpper, rightUpper: poseBones.rightUpper,
-      leftLower: poseBones.leftLower, rightLower: poseBones.rightLower,
-      leftHand: poseBones.leftHand, rightHand: poseBones.rightHand
-    };
-    const worldPos = node => { const v=new THREE.Vector3(); node.getWorldPosition(v); return v; };
-    const aimSegment = (boneNode, childNode, targetWorld) => {
-      if(!boneNode||!childNode||!targetWorld||!boneNode.parent)return;
-      vrm.scene.updateMatrixWorld(true);
-      const origin=worldPos(boneNode), childPos=worldPos(childNode);
-      const currentDir=childPos.sub(origin);
-      const targetDir=targetWorld.clone().sub(origin);
-      if(currentDir.lengthSq()<1e-8||targetDir.lengthSq()<1e-8)return;
-      currentDir.normalize(); targetDir.normalize();
-      const delta=new THREE.Quaternion().setFromUnitVectors(currentDir,targetDir);
-      const currentWorld=boneNode.getWorldQuaternion(new THREE.Quaternion());
-      const desiredWorld=delta.multiply(currentWorld);
-      const parentWorld=boneNode.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
-      boneNode.quaternion.copy(parentWorld.multiply(desiredWorld));
-      boneNode.updateMatrixWorld(true);
-    };
-    const restAngles = {
-      leftHand:[0.04,0.0,0.10], rightHand:[0.04,0.0,-0.10]
-    };
-    applyCrossedPose = (blend = 0, phase = 0) => {
-      const a=Math.sin(phase), b=Math.sin(phase*0.72+1.0);
-      const active=behaviorMode==='talk'||behaviorMode==='hum';
-      // Reset arm chain to authored rest pose every frame before solving IK.
-      for(const key of ['leftUpper','rightUpper','leftLower','rightLower','leftHand','rightHand']){
-        const node=armNodes[key], base=poseBase[key];
-        if(node&&base)node.quaternion.copy(base);
-      }
-      vrm.scene.updateMatrixWorld(true);
-      const chestNode=poseBones.chest||poseBones.spine;
-      if(!chestNode)return;
-      const chest=worldPos(chestNode);
-      // Target the hands at the upper chest, in front of the torso.
-      // A small voice-synced motion keeps the hands together without dropping them.
-      // Gesture-specific hand targets. All positions are relative to the chest
-      // so the same behavior works across different VRM model scales.
-      const front=0.24;
-      const wave=active ? Math.sin(phase)*0.025 : Math.sin(phase*0.35)*0.004;
-      let lx=-0.065, rx=0.065, ly=0.075, ry=0.075, lz=front, rz=front;
-      switch(gestureMode){
-        case 'idle': lx=-0.09; rx=0.09; ly=-0.18; ry=-0.18; lz=0.16; rz=0.16; break;
-        case 'namaste': case 'apology': lx=-0.025; rx=0.025; ly=0.13; ry=0.13; lz=0.27; rz=0.27; break;
-        case 'talk': lx=-0.10+wave; rx=0.07; ly=0.06+Math.abs(Math.sin(phase))*0.035; ry=0.00; break;
-        case 'explain': lx=-0.22; rx=0.22; ly=0.015+Math.abs(Math.sin(phase))*0.025; ry=0.015+Math.abs(Math.sin(phase+1))*0.025; lz=0.20; rz=0.20; break;
-        case 'point': lx=-0.07; rx=0.22; ly=0.02; ry=0.17+Math.sin(phase)*0.015; rz=0.19; break;
-        case 'thinking': lx=-0.09; rx=0.16; ly=-0.02; ry=0.27; rz=0.18; break;
-        case 'listening': lx=-0.045; rx=0.045; ly=0.02; ry=0.02; lz=0.25; rz=0.25; break;
-        case 'happy': lx=-0.13; rx=0.13; ly=0.13+Math.abs(Math.sin(phase))*0.04; ry=0.13+Math.abs(Math.sin(phase+0.6))*0.04; break;
-        case 'thanks': lx=-0.035; rx=0.035; ly=0.04; ry=0.04; lz=0.28; rz=0.28; break;
-        case 'sad': lx=-0.045; rx=0.045; ly=-0.02; ry=-0.02; lz=0.22; rz=0.22; break;
-        case 'angry': lx=-0.12; rx=0.12; ly=0.00; ry=0.00; lz=0.19; rz=0.19; break;
-        case 'goodbye': lx=-0.12; rx=0.19; ly=0.00; ry=0.18+Math.sin(phase*1.8)*0.045; rz=0.18; break;
-      }
-      const leftTarget=chest.clone().add(new THREE.Vector3(lx+(active?wave:0),ly+Math.sin(phase*0.8)*0.008*Number(active),lz));
-      const rightTarget=chest.clone().add(new THREE.Vector3(rx+(active?Math.sin(phase+0.8)*0.018:0),ry+Math.sin(phase*0.8+0.5)*0.008*Number(active),rz));
-      const leftShoulder=poseBones.leftShoulder||poseBones.leftUpper;
-      const rightShoulder=poseBones.rightShoulder||poseBones.rightUpper;
-      const leftElbow=leftShoulder?worldPos(leftShoulder).add(new THREE.Vector3(-0.15,-0.075,0.12)):null;
-      const rightElbow=rightShoulder?worldPos(rightShoulder).add(new THREE.Vector3(0.15,-0.075,0.12)):null;
-      // Aim upper arm toward a gently outward elbow, then forearm toward the hand target.
-      aimSegment(poseBones.leftUpper,poseBones.leftLower,leftElbow);
-      aimSegment(poseBones.leftLower,poseBones.leftHand,leftTarget);
-      aimSegment(poseBones.rightUpper,poseBones.rightLower,rightElbow);
-      aimSegment(poseBones.rightLower,poseBones.rightHand,rightTarget);
-      // Slightly turn wrists inward; speech gestures remain subtle so hands stay together.
-      for(const [key,sign] of [['leftHand',1],['rightHand',-1]]){
-        const node=armNodes[key],base=poseBase[key];
-        if(node&&base){
-          const wiggle=active?Math.sin(phase+(sign>0?0:1))*0.018:0;
-          const rest=restAngles[key];
-          node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(
-            new THREE.Euler(rest[0]+wiggle,rest[1],rest[2]-sign*0.035,'XYZ')));
-        }
-      }
-      vrm.scene.updateMatrixWorld(true);
-    };
-
-    // Continuous whole-upper-body animation. Gentle idle breathing/sway always runs;
-    // speaking and humming add more head, torso and shoulder motion. animate() calls this each frame.
-    let bodyClock=0;
-    applyBodyPose = (delta, mode, phase) => {
-      bodyClock += delta;
-      const idleX=Math.sin(bodyClock*1.15)*0.018;
-      const idleZ=Math.sin(bodyClock*0.82)*0.012;
-      const active=(mode==='talk'||mode==='hum');
-      const energy=mode==='hum'?1.0:(mode==='talk'?0.75:0.25);
-      const gestureEnergy=['happy','explain','goodbye'].includes(gestureMode)?1.25:1.0;
-      const nod=Math.sin(bodyClock*(mode==='hum'?3.0:2.0))*0.030*energy*gestureEnergy;
-      const sway=Math.sin(bodyClock*(mode==='hum'?2.0:1.35))*0.040*energy*gestureEnergy;
-      const apply=(key,x,y,z)=>{
-        const node=poseBones[key],base=poseBase[key];
-        if(!node||!base)return;
-        node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')));
-      };
-      apply('hips',0,idleX*0.35,idleZ*0.25);
-      // Seated pose approximation: thighs forward, knees bent downward, feet relaxed.
-      // These offsets are additive to the VRM's authored rest rotations.
-      const seated=(key,x,y,z)=>{
-        const node=poseBones[key],base=poseBase[key];
-        if(!node||!base)return;
-        node.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'XYZ')));
-      };
-      seated('leftUpperLeg',-0.92,0.04,-0.08);
-      seated('rightUpperLeg',-0.92,-0.04,0.08);
-      seated('leftLowerLeg',1.22,0,0.02);
-      seated('rightLowerLeg',1.22,0,-0.02);
-      seated('leftFoot',-0.18,0,0);
-      seated('rightFoot',-0.18,0,0);
-      apply('spine',idleX+sway*0.45,0,idleZ+sway*0.3);
-      apply('chest',idleX*0.55+sway*0.55,0,nod*0.35);
-      apply('neck',nod*0.7,Math.sin(bodyClock*0.6)*0.015,0);
-      const headTilt=gestureMode==='thinking'?0.10:gestureMode==='sad'?0.055:gestureMode==='happy'?-0.035:0;
-      apply('head',nod,Math.sin(bodyClock*0.72)*0.025,headTilt+Math.sin(bodyClock*0.8)*0.012);
-      apply('leftShoulder',0,0,active?0.025*Math.sin(phase):idleZ);
-      apply('rightShoulder',0,0,active?-0.025*Math.sin(phase*0.8+1): -idleZ);
-    };
-    applyCrossedPose(0,0);
-
-    frameModel(vrm.scene);
-    hideLoading();
-    const loadSeconds=((performance.now()-initStartedAt)/1000).toFixed(1);
-    setStatus(`बैठा हुआ 3D Avatar तैयार है (${loadSeconds} सेकंड)। संदेश लिखकर “पूछें और सुनें” दबाएँ।`);
-    animate();
-    window.addEventListener('resize',()=>{
-      if(!renderer||!camera)return;
-      camera.aspect=Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight);
-      camera.updateProjectionMatrix();
-      renderer.setSize(stageEl.clientWidth,stageEl.clientHeight);
-    });
-  }catch(error){
-    hideLoading();
-    console.error('Zoya avatar initialization failed:',error);
-    const message=error?.message||String(error);
-    setStatus('लोडिंग त्रुटि: '+message+' (जाँचें: इंटरनेट/CDN, WebGL, और models/sample_a.vrm)');
-    showLoading('3D Avatar लोड नहीं हुआ। '+message+' इंटरनेट और models/sample_a.vrm की उपलब्धता जाँचें, फिर पेज रीफ्रेश करें।');
-    const spinner=loadingEl?.querySelector('.spinner'); if(spinner)spinner.hidden=true;
-  }
-}
+async function init(){const started=performance.now();showLoading('ज़ोया का 3D अवतार लोड हो रहा है…');setStatus('3D libraries डाउनलोड हो रही हैं…');loadingNoticeTimer=setTimeout(()=>{if(!vrm){showLoading('अवतार तैयार हो रहा है… पहली बार डाउनलोड में थोड़ा समय लग सकता है।');setStatus('3D लोडिंग जारी है…')}} ,5000);
+ try{const imports=await Promise.all([import('three'),import('three/addons/loaders/GLTFLoader.js'),import('@pixiv/three-vrm')]);[THREE,{GLTFLoader},{VRMLoaderPlugin,VRMUtils}]=imports;
+ scene=new THREE.Scene();scene.background=new THREE.Color(0x171823);camera=new THREE.PerspectiveCamera(30,Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight),.1,100);renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));renderer.setSize(stageEl.clientWidth,stageEl.clientHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;stageEl.appendChild(renderer.domElement);
+ scene.add(new THREE.HemisphereLight(0xffffff,0x62627b,2));const key=new THREE.DirectionalLight(0xffffff,2);key.position.set(1,3,4);scene.add(key);const fill=new THREE.DirectionalLight(0xa9b8ff,.7);fill.position.set(-3,2,1);scene.add(fill);clock=new THREE.Clock();setStatus('models/sample_a.vrm डाउनलोड हो रहा है…');const loader=new GLTFLoader();loader.register(parser=>new VRMLoaderPlugin(parser));const gltf=await loader.loadAsync('./models/sample_a.vrm');vrm=gltf.userData.vrm;if(!vrm)throw new Error('फ़ाइल से VRM डेटा नहीं मिला।');if(VRMUtils&&typeof VRMUtils.rotateVRM0==='function')VRMUtils.rotateVRM0(vrm);scene.add(vrm.scene);setupPose();frameModel(vrm.scene);hideLoading();setStatus(`3D Avatar तैयार है (${((performance.now()-started)/1000).toFixed(1)} सेकंड)। हाथ छाती के सामने जुड़े रहेंगे।`);animate();
+ window.addEventListener('resize',()=>{if(!renderer||!camera)return;camera.aspect=Math.max(1,stageEl.clientWidth)/Math.max(1,stageEl.clientHeight);camera.updateProjectionMatrix();renderer.setSize(stageEl.clientWidth,stageEl.clientHeight)});
+ }catch(e){hideLoading();console.error('Zoya avatar initialization failed:',e);const m=e?.message||String(e);setStatus('लोडिंग त्रुटि: '+m+' (इंटरनेट/CDN और models/sample_a.vrm जाँचें)');showLoading('3D Avatar लोड नहीं हुआ। '+m+' इंटरनेट और models/sample_a.vrm की उपलब्धता जाँचें।');const s=loadingEl.querySelector('.spinner');if(s)s.hidden=true}}
 init();
 </script>
 </body>
